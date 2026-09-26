@@ -1,77 +1,15 @@
-ねも死なないローグライク v0.7
+ねも死なないローグライク v0.8
 
-死なないローグライク × Nemo Collection NFT Webゲーム
+PC NFT取得安定化アップデート
 
-v0.7 名称変更 + SEO / SNS共有アップデート
-- ゲーム正式表示名を「ねも死なないローグライク」に変更
-- ブラウザタイトルを検索向けに最適化
-- meta description / canonical / robots を追加
-- Open Graph（X・Discord・LINE等の共有カード）を追加
-- Twitter Card（summary_large_image）を追加
-- 検索エンジン向け構造化データ（VideoGame / JSON-LD）を追加
-- robots.txt / sitemap.xml を追加
-- 1200×630pxのSNS共有用OG画像を追加
-- MetaMask Connect側のDapp名も「ねも死なないローグライク」に変更
+- スマホ：従来どおりOpenSea自動取得を優先
+- PC：OpenSea取得が失敗した場合、MetaMask経由でPolygonのERC-1155保有数を直接確認
+- NemoCollection2023だけをNFTメタデータで自動判定
+- 最後の予備としてToken ID手動確認も維持
+- ゲーム内容、深層12ROOM、限定ルート、図鑑、匂わせアイテムはv0.7から維持
 
-検索で意識する語句
-- ねも死なないローグライク
-- ねも ローグライク
-- Nemo Collection / NemoCollection2023
-- NFTゲーム / NFT Webゲーム
-- ブラウザゲーム / Webゲーム
+GitHub Pages更新：
+update_only ZIPの index.html / app.js / README.txt をリポジトリ直下へ上書きしてCommitしてください。
 
-公開URL（canonical）
-https://haine-cpu7.github.io/nemo-adventure/
-
-GitHub Pages更新
-このZIPの中身を既存の nemo-adventure リポジトリへ上書きしてください。
-update-only版では index.html / app.js / README.txt / robots.txt / sitemap.xml / assets/og-nemo-roguelike.jpg を更新します。
-
-注意
-Google検索への反映は即時ではありません。公開後にGoogle Search Consoleへサイトを登録し、URL検査からインデックス登録をリクエストすると確認しやすくなります。
-
---- v0.6から継続 ---
-（旧名称）ねもの冒険記録 v0.6
-
-死なないローグライク × Nemo NFT Webゲーム
-
-v0.6 匂わせ強化アップデート
-- ゲーム表面のかわいいローグライクはそのまま
-- 拾いもの図鑑を30種へ拡張
-- 星待館につながる忘れ物を追加
-  ・古びた旅館札「星待」
-  ・古い宿帳の紙片
-  ・旧館の案内札
-  ・「黒瀬」と書かれた名札
-  ・宛名のない手紙
-  ・午前4時51分で止まった時計
-  ・「直人へ」と書かれた泥の紙片 など
-- 王家につながる深層アイテムを追加
-  ・焼け焦げた地図
-  ・小さな冠の飾り
-  ・読めない日記
-  ・古い肖像画の切れ端
-- NFT Holder深層に記録者側の断片を追加
-  ・記録者のメモ
-  ・壊れた懐中時計
-  ・封印された小箱
-- 深いROOMほど意味深イベントが少し出やすい
-- 新しい拾いものは未発見品がやや優先され、図鑑を埋めやすい
-- 意味深な品を拾った後だけ、ねもの反応が少し変わる
-- 新称号
-  ・星待ちの忘れもの
-  ・知らないはずの紋章
-  ・見守られていた記録
-
-重要：答えはゲーム内で説明しません。
-知らない人には古い不思議な拾いもの。
-ねもみすてりーでいずを知っている人には、少しだけ意味が見える設計です。
-
-ウォレット接続
-- v0.5のMetaMask Connect方式を維持
-- Safariなど通常ブラウザから接続時だけMetaMaskを呼び出す方式
-- NFTの送金・購入・ガス代はありません
-
-GitHub Pages更新
-このZIPの index.html / app.js / README.txt を既存リポジトリへ上書きしてください。
-完全版ZIPでは assets と styles.css も含まれています。
+安全性：
+ウォレットの公開アドレスとNFT保有情報を読み取るだけです。送金・購入・秘密鍵入力はありません。

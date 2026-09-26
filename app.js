@@ -8,6 +8,11 @@ const COLLECTION_SLUG = 'nemocollection2023';
 const OPENSEA_AUTH_URL = 'https://api.opensea.io/api/v2/auth/keys';
 const OPENSEA_ACCOUNT_NFTS_URL = 'https://api.opensea.io/api/v2/chain/{chain}/account/{address}/nfts';
 const NEMO_SHARED_CONTRACT = '0x2953399124f0cbb46d2cbacd8a89cf0599974963';
+// OpenSea Shared StorefrontのToken ID上位96bitに入っているNemo作成者アドレス。
+// 既知のNemoCollection2023 Token IDから一意に復元できる公開情報です。
+const NEMO_CREATOR_ADDRESS = '0xd9f57493574c8abc1651a9c0478bdf73324289f4';
+const NEMO_MINT_SCAN_MAX = 1024;
+const NEMO_MINT_SCAN_CHUNK = 64;
 const POLYGON_CHAIN_ID = '0x89';
 const METAMASK_CONNECT_ESM = 'https://esm.sh/@metamask/connect-evm@2.1.1?bundle&target=es2022';
 const WALLET_SESSION_KEY = 'nemoRogueWalletConnectedV1';
@@ -467,18 +472,55 @@ async function refreshHolderNfts() {
   if (!state.walletAddress) return;
   setScanStatus('Polygon上のNemoCollection2023を確認しています…', 'loading');
   $('refreshNftsBtn').disabled = true;
+  $('manualVerifyStatus').textContent = '';
+
+  let nfts = [];
+  let source = '';
+  let openSeaError = null;
+  let chainError = null;
+
   try {
-    const nfts = await fetchNemoNftsFromOpenSea(state.walletAddress);
-    state.holderNfts = dedupeNfts(nfts.map(normalizeOpenSeaNft).filter(Boolean));
+    // スマホではこの経路が安定しているため、従来どおりOpenSeaを最初に試す。
+    try {
+      const openSeaNfts = await fetchNemoNftsFromOpenSea(state.walletAddress);
+      nfts = dedupeNfts(openSeaNfts.map(normalizeOpenSeaNft).filter(Boolean));
+      if (nfts.length) source = 'OpenSea';
+    } catch (err) {
+      openSeaError = err;
+    }
+
+    // PCブラウザではOpenSeaのブラウザ直アクセスが失敗することがある。
+    // その場合はMetaMask経由でPolygon上のERC-1155 balanceOfBatchを直接読み、
+    // NemoCollection2023だけをメタデータ名で絞り込む。
+    if (!nfts.length) {
+      setScanStatus('OpenSeaで取得できないため、Polygonを直接確認しています…', 'loading');
+      try {
+        nfts = await fetchNemoNftsOnChain(state.walletAddress, progress => {
+          setScanStatus(`Polygonを直接確認中… ${progress}%`, 'loading');
+        });
+        nfts = dedupeNfts(nfts);
+        if (nfts.length) source = 'Polygon直接確認';
+      } catch (err) {
+        chainError = err;
+      }
+    }
+
+    state.holderNfts = nfts;
     renderHolderNemos();
+
     if (state.holderNfts.length) {
-      setScanStatus(`🔓 Nemo Holder ✓　${state.holderNfts.length}人のねもを確認しました。深層12ROOMが開きました。`, 'success');
+      setScanStatus(`🔓 Nemo Holder ✓　${state.holderNfts.length}人のねもを確認しました。深層12ROOMが開きました。${source ? `（${source}）` : ''}`, 'success');
+      $('manualVerifyStatus').textContent = '';
+    } else if (chainError) {
+      setScanStatus('自動取得がうまくいきませんでした。下の「Token IDで確認」も使えます。', 'warning');
+      const parts = [];
+      if (openSeaError) parts.push(`OpenSea: ${friendlyNetworkError(openSeaError)}`);
+      parts.push(`Polygon直接確認: ${friendlyNetworkError(chainError)}`);
+      $('manualVerifyStatus').textContent = parts.join(' / ');
     } else {
       setScanStatus('このウォレットではNemoCollection2023を確認できませんでした。別ウォレットの場合は接続先を変更してください。', 'warning');
+      if (openSeaError) $('manualVerifyStatus').textContent = `OpenSea取得は失敗しましたが、Polygon直接確認は完了しました。`;
     }
-  } catch (err) {
-    setScanStatus('自動取得がうまくいきませんでした。下の「Token IDで確認」を使えます。', 'warning');
-    $('manualVerifyStatus').textContent = `自動取得エラー: ${friendlyNetworkError(err)}`;
   } finally {
     $('refreshNftsBtn').disabled = false;
   }
@@ -513,6 +555,63 @@ async function fetchNemoNftsFromOpenSea(address) {
     } catch (err) { lastError = err; }
   }
   throw lastError || new Error('OpenSeaから取得できませんでした。');
+}
+
+async function fetchNemoNftsOnChain(address, onProgress = () => {}) {
+  await ensurePolygonNetwork();
+
+  const ownedTokenIds = [];
+  const candidates = [];
+  for (let mintIndex = 0; mintIndex < NEMO_MINT_SCAN_MAX; mintIndex += 1) {
+    candidates.push(sharedStorefrontTokenId(NEMO_CREATOR_ADDRESS, mintIndex, 1));
+  }
+
+  for (let offset = 0; offset < candidates.length; offset += NEMO_MINT_SCAN_CHUNK) {
+    const chunk = candidates.slice(offset, offset + NEMO_MINT_SCAN_CHUNK);
+    const balances = await erc1155BalanceOfBatch(address, chunk);
+    balances.forEach((balance, i) => {
+      if (balance > 0n) ownedTokenIds.push(chunk[i]);
+    });
+    onProgress(Math.min(70, Math.round(((offset + chunk.length) / candidates.length) * 70)));
+  }
+
+  if (!ownedTokenIds.length) {
+    onProgress(100);
+    return [];
+  }
+
+  const nfts = [];
+  for (let i = 0; i < ownedTokenIds.length; i += 1) {
+    const tokenId = ownedTokenIds[i];
+    try {
+      const metadata = await getTokenMetadata(tokenId);
+      if (!isNemoCollection2023Metadata(metadata)) continue;
+      nfts.push({
+        identifier: tokenId.toString(),
+        name: metadata?.name || `Nemo ${shortToken(tokenId.toString())}`,
+        image: resolveAssetUrl(metadata?.image || metadata?.image_url || metadata?.animation_url || ''),
+        contract: NEMO_SHARED_CONTRACT,
+      });
+    } catch {
+      // 同じ作成者の別作品や、一時的にメタデータ取得できないTokenは無視する。
+    }
+    onProgress(70 + Math.round(((i + 1) / ownedTokenIds.length) * 30));
+  }
+
+  return nfts;
+}
+
+function sharedStorefrontTokenId(creatorAddress, mintIndex, supply = 1) {
+  const creator = BigInt(creatorAddress);
+  return (creator << 96n) | (BigInt(mintIndex) << 40n) | BigInt(supply);
+}
+
+function isNemoCollection2023Metadata(metadata) {
+  if (!metadata) return false;
+  const haystack = [metadata.name, metadata.description, metadata.external_url, metadata.external_link]
+    .filter(Boolean)
+    .join(' ');
+  return /Nemo\s*2023\s*#?\s*\d+/i.test(haystack) || /NemoCollection2023/i.test(haystack);
 }
 
 function normalizeOpenSeaNft(nft) {
@@ -631,6 +730,45 @@ async function erc1155BalanceOf(address, tokenId) {
   const tokenWord = tokenId.toString(16).padStart(64, '0');
   const result = await provider.request({ method: 'eth_call', params: [{ to: NEMO_SHARED_CONTRACT, data: `0x${selector}${addressWord}${tokenWord}` }, 'latest'] });
   return BigInt(result || '0x0');
+}
+
+async function erc1155BalanceOfBatch(address, tokenIds) {
+  if (!tokenIds.length) return [];
+  const provider = await getWalletProvider();
+  const selector = '4e1273f4';
+  const addressWord = address.toLowerCase().replace(/^0x/, '').padStart(64, '0');
+  const word = value => BigInt(value).toString(16).padStart(64, '0');
+
+  // balanceOfBatch(address[],uint256[]) ABI encoding
+  const n = tokenIds.length;
+  const addressesOffset = 64;
+  const idsOffset = 64 + (n + 1) * 32;
+  const addressesPart = word(n) + Array.from({ length: n }, () => addressWord).join('');
+  const idsPart = word(n) + tokenIds.map(id => word(id)).join('');
+  const data = `0x${selector}${word(addressesOffset)}${word(idsOffset)}${addressesPart}${idsPart}`;
+
+  const result = await provider.request({
+    method: 'eth_call',
+    params: [{ to: NEMO_SHARED_CONTRACT, data }, 'latest'],
+  });
+  return decodeAbiUintArray(result);
+}
+
+function decodeAbiUintArray(hex) {
+  const clean = String(hex || '').replace(/^0x/, '');
+  if (clean.length < 128) throw new Error('保有数の一括確認結果を読み取れませんでした。');
+  const offsetBytes = Number.parseInt(clean.slice(0, 64), 16);
+  const start = offsetBytes * 2;
+  const length = Number.parseInt(clean.slice(start, start + 64), 16);
+  const out = [];
+  let cursor = start + 64;
+  for (let i = 0; i < length; i += 1) {
+    const chunk = clean.slice(cursor, cursor + 64);
+    if (chunk.length !== 64) throw new Error('保有数の一括確認結果が途中で切れています。');
+    out.push(BigInt(`0x${chunk}`));
+    cursor += 64;
+  }
+  return out;
 }
 
 async function getTokenMetadata(tokenId) {
