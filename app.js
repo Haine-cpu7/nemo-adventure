@@ -219,7 +219,7 @@ async function initWalletClient() {
       if (typeof mod.createEVMClient !== 'function') throw new Error('MetaMask Connectを読み込めませんでした。');
       walletClient = await mod.createEVMClient({
         dapp: {
-          name: 'ねもの冒険記録',
+          name: 'ねも死なないローグライク',
           url: `${location.origin}${location.pathname}`,
         },
         api: { supportedNetworks: SUPPORTED_NETWORKS },

@@ -1,4 +1,37 @@
-ねもの冒険記録 v0.6
+ねも死なないローグライク v0.7
+
+死なないローグライク × Nemo Collection NFT Webゲーム
+
+v0.7 名称変更 + SEO / SNS共有アップデート
+- ゲーム正式表示名を「ねも死なないローグライク」に変更
+- ブラウザタイトルを検索向けに最適化
+- meta description / canonical / robots を追加
+- Open Graph（X・Discord・LINE等の共有カード）を追加
+- Twitter Card（summary_large_image）を追加
+- 検索エンジン向け構造化データ（VideoGame / JSON-LD）を追加
+- robots.txt / sitemap.xml を追加
+- 1200×630pxのSNS共有用OG画像を追加
+- MetaMask Connect側のDapp名も「ねも死なないローグライク」に変更
+
+検索で意識する語句
+- ねも死なないローグライク
+- ねも ローグライク
+- Nemo Collection / NemoCollection2023
+- NFTゲーム / NFT Webゲーム
+- ブラウザゲーム / Webゲーム
+
+公開URL（canonical）
+https://haine-cpu7.github.io/nemo-adventure/
+
+GitHub Pages更新
+このZIPの中身を既存の nemo-adventure リポジトリへ上書きしてください。
+update-only版では index.html / app.js / README.txt / robots.txt / sitemap.xml / assets/og-nemo-roguelike.jpg を更新します。
+
+注意
+Google検索への反映は即時ではありません。公開後にGoogle Search Consoleへサイトを登録し、URL検査からインデックス登録をリクエストすると確認しやすくなります。
+
+--- v0.6から継続 ---
+（旧名称）ねもの冒険記録 v0.6
 
 死なないローグライク × Nemo NFT Webゲーム
 
