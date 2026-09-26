@@ -1,4 +1,4 @@
-ねも死なないローグライク v0.9
+ねも死なないローグライク v0.9.1
 Nemo Holder API (Cloudflare Worker)
 
 【いちばん簡単な公開方法：Cloudflare画面から】
