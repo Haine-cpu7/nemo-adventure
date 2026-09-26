@@ -4,6 +4,14 @@ const OPENSEA_ACCOUNT_NFTS_URL = 'https://api.opensea.io/api/v2/chain/{chain}/ac
 const DEFAULT_ALLOWED_ORIGIN = 'https://haine-cpu7.github.io';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
+// Streamlit版と同じ考え方：Instant API Keyを約6日使い回す。
+const KEY_CACHE_SECONDS = 6 * 24 * 60 * 60;
+const KEY_REFRESH_MARGIN_SECONDS = 60 * 60;
+const DEFAULT_AUTH_COOLDOWN_SECONDS = 30 * 60;
+
+// 同じWorker isolate内で同時リクエストが来ても、キー発行を1回にまとめる。
+let instantKeyPromise = null;
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -18,7 +26,16 @@ export default {
     }
 
     if (url.pathname === '/health' || url.pathname === '/') {
-      return json({ ok: true, service: 'nemo-holder-api', collection: COLLECTION_SLUG }, 200, cors);
+      const cacheState = await getCacheState(request);
+      return json({
+        ok: true,
+        service: 'nemo-holder-api',
+        version: '0.9.3',
+        collection: COLLECTION_SLUG,
+        keyMode: String(env.OPENSEA_API_KEY || '').trim() ? 'worker-secret' : 'instant-key-cache',
+        instantKeyCached: cacheState.keyCached,
+        authCooldown: cacheState.cooldown,
+      }, 200, cors);
     }
 
     if (url.pathname !== '/nfts') {
@@ -38,6 +55,7 @@ export default {
         collection: COLLECTION_SLUG,
         chain: result.chain,
         nfts: result.nfts,
+        source: result.source,
       }, 200, cors);
     } catch (error) {
       console.error('Nemo NFT lookup failed', error);
@@ -78,22 +96,29 @@ function json(body, status, extraHeaders = {}) {
 }
 
 async function getNemoNfts(request, env, address) {
-  let apiKey = String(env.OPENSEA_API_KEY || '').trim();
-  let usingInstantKey = false;
-  if (!apiKey) {
-    apiKey = await getInstantApiKey(request);
-    usingInstantKey = true;
+  const configuredKey = String(env.OPENSEA_API_KEY || '').trim();
+
+  if (configuredKey) {
+    const result = await fetchAccountNfts(address, configuredKey);
+    return { ...result, source: 'worker-secret' };
   }
 
+  let apiKey = await getInstantApiKey(request);
+
   try {
-    return await fetchAccountNfts(address, apiKey);
+    const result = await fetchAccountNfts(address, apiKey);
+    return { ...result, source: 'instant-key-cache' };
   } catch (error) {
-    // Instant keyが期限切れ等だった場合はキャッシュを捨てて一度だけ作り直す。
-    if (usingInstantKey && /OpenSea .* (401|403)/.test(String(error?.message || error))) {
+    const text = String(error?.message || error);
+
+    // キャッシュしたInstant keyが期限切れ/無効になった時だけ、1回だけ再発行。
+    if (/OpenSea .* (401|403)/.test(text)) {
       await clearCachedInstantKey(request);
-      const freshKey = await getInstantApiKey(request);
-      return await fetchAccountNfts(address, freshKey);
+      apiKey = await getInstantApiKey(request, true);
+      const result = await fetchAccountNfts(address, apiKey);
+      return { ...result, source: 'instant-key-refreshed' };
     }
+
     throw error;
   }
 }
@@ -143,19 +168,29 @@ async function fetchAccountNfts(address, apiKey) {
   throw lastError || new Error('OpenSeaからNFT一覧を取得できませんでした。');
 }
 
-async function getInstantApiKey(request) {
-  const cache = caches.default;
-  const origin = new URL(request.url).origin;
-  const cacheRequest = new Request(`${origin}/__internal/opensea-key-cache`, { method: 'GET' });
-  const cached = await cache.match(cacheRequest);
-
-  if (cached) {
-    const data = await cached.json();
-    if (data?.api_key && (!data.expires_at || Date.parse(data.expires_at) > Date.now() + 60 * 60 * 1000)) {
-      return data.api_key;
-    }
+async function getInstantApiKey(request, forceRefresh = false) {
+  if (!forceRefresh) {
+    const cached = await readCachedInstantKey(request);
+    if (cached) return cached;
   }
 
+  const cooldown = await readAuthCooldown(request);
+  if (cooldown) {
+    throw new Error(`OpenSea auth cooldown: ${cooldown.message}`);
+  }
+
+  // 同一isolate内でキー発行リクエストをまとめる。
+  if (!instantKeyPromise) {
+    instantKeyPromise = createAndCacheInstantApiKey(request)
+      .finally(() => {
+        instantKeyPromise = null;
+      });
+  }
+
+  return await instantKeyPromise;
+}
+
+async function createAndCacheInstantApiKey(request) {
   const response = await fetch(OPENSEA_AUTH_URL, {
     method: 'POST',
     headers: { 'Accept': 'application/json' },
@@ -163,32 +198,143 @@ async function getInstantApiKey(request) {
 
   if (!response.ok) {
     const text = await response.text();
+
+    if (response.status === 429) {
+      const retryAfter = parseRetryAfter(response.headers.get('Retry-After'));
+      const cooldownSeconds = retryAfter || DEFAULT_AUTH_COOLDOWN_SECONDS;
+      await writeAuthCooldown(
+        request,
+        cooldownSeconds,
+        `OpenSea APIキー発行が一時制限中です。約${Math.ceil(cooldownSeconds / 60)}分後に再試行してください。`
+      );
+    }
+
     throw new Error(`OpenSea auth ${response.status}: ${text.slice(0, 180)}`);
   }
 
   const data = await response.json();
-  if (!data?.api_key) throw new Error('OpenSea API keyを取得できませんでした。');
+  const apiKey = String(data?.api_key || '').trim();
+  if (!apiKey) throw new Error('OpenSea API keyを取得できませんでした。');
 
-  const expiresAt = data.expires_at ? Date.parse(data.expires_at) : Date.now() + 6 * 24 * 60 * 60 * 1000;
-  const ttl = Math.max(300, Math.min(6 * 24 * 60 * 60, Math.floor((expiresAt - Date.now()) / 1000) - 3600));
-  await cache.put(cacheRequest, new Response(JSON.stringify(data), {
+  const expiresMs = parseExpiration(data?.expires_at);
+  const maxUsableSeconds = Math.max(
+    300,
+    Math.floor((expiresMs - Date.now()) / 1000) - KEY_REFRESH_MARGIN_SECONDS
+  );
+  const ttl = Math.max(300, Math.min(KEY_CACHE_SECONDS, maxUsableSeconds));
+
+  const cache = caches.default;
+  const cacheRequest = instantKeyCacheRequest(request);
+  const payload = {
+    api_key: apiKey,
+    expires_at: new Date(expiresMs).toISOString(),
+    cached_at: new Date().toISOString(),
+  };
+
+  await cache.put(cacheRequest, new Response(JSON.stringify(payload), {
     headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': `max-age=${ttl}`,
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': `public, max-age=${ttl}`,
     },
   }));
 
-  return data.api_key;
+  await clearAuthCooldown(request);
+  return apiKey;
+}
+
+async function readCachedInstantKey(request) {
+  const cached = await caches.default.match(instantKeyCacheRequest(request));
+  if (!cached) return '';
+
+  try {
+    const data = await cached.json();
+    const apiKey = String(data?.api_key || '').trim();
+    if (!apiKey) return '';
+
+    const expiresMs = parseExpiration(data?.expires_at);
+    if (expiresMs <= Date.now() + KEY_REFRESH_MARGIN_SECONDS * 1000) {
+      await clearCachedInstantKey(request);
+      return '';
+    }
+
+    return apiKey;
+  } catch {
+    await clearCachedInstantKey(request);
+    return '';
+  }
 }
 
 async function clearCachedInstantKey(request) {
-  const cache = caches.default;
+  await caches.default.delete(instantKeyCacheRequest(request));
+}
+
+function instantKeyCacheRequest(request) {
   const origin = new URL(request.url).origin;
-  const cacheRequest = new Request(`${origin}/__internal/opensea-key-cache`, { method: 'GET' });
-  await cache.delete(cacheRequest);
+  return new Request(`${origin}/__internal/opensea-instant-key-v093`, { method: 'GET' });
+}
+
+function cooldownCacheRequest(request) {
+  const origin = new URL(request.url).origin;
+  return new Request(`${origin}/__internal/opensea-auth-cooldown-v093`, { method: 'GET' });
+}
+
+async function writeAuthCooldown(request, seconds, message) {
+  await caches.default.put(cooldownCacheRequest(request), new Response(JSON.stringify({
+    message,
+    created_at: new Date().toISOString(),
+  }), {
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': `public, max-age=${Math.max(60, seconds)}`,
+    },
+  }));
+}
+
+async function readAuthCooldown(request) {
+  const response = await caches.default.match(cooldownCacheRequest(request));
+  if (!response) return null;
+  try {
+    return await response.json();
+  } catch {
+    return { message: 'OpenSea APIキー発行の再試行を一時停止しています。' };
+  }
+}
+
+async function clearAuthCooldown(request) {
+  await caches.default.delete(cooldownCacheRequest(request));
+}
+
+async function getCacheState(request) {
+  const keyResponse = await caches.default.match(instantKeyCacheRequest(request));
+  const cooldown = await readAuthCooldown(request);
+  return {
+    keyCached: Boolean(keyResponse),
+    cooldown: cooldown?.message || null,
+  };
+}
+
+function parseExpiration(value) {
+  if (value) {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  // OpenSea Instant keyは期限付き。取得できない場合は安全側で6日として扱う。
+  return Date.now() + KEY_CACHE_SECONDS * 1000;
+}
+
+function parseRetryAfter(value) {
+  if (!value) return 0;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds);
+
+  const when = Date.parse(value);
+  if (Number.isFinite(when)) {
+    return Math.max(0, Math.ceil((when - Date.now()) / 1000));
+  }
+  return 0;
 }
 
 function safeError(error) {
   const text = String(error?.message || error || 'unknown_error');
-  return text.length > 240 ? `${text.slice(0, 237)}...` : text;
+  return text.length > 300 ? `${text.slice(0, 297)}...` : text;
 }

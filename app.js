@@ -37,10 +37,30 @@ const NEMOS = [
 ];
 
 const DUNGEONS = [
-  { id: 'forest', name: 'どんぐりの森', icon: '🌲', difficulty: 1, desc: 'やさしい森。落としものと小さな出会いが多い。' },
-  { id: 'warehouse', name: '古い倉庫', icon: '📦', difficulty: 2, desc: '箱、ほこり、忘れもの。妙なものが眠っている。' },
-  { id: 'onsen', name: '忘れられた温泉洞', icon: '♨️', difficulty: 3, desc: '湯気の向こうに古い道。ねもの世界の秘密に近い。' },
-  { id: 'archive', name: '記録者の地下回廊', icon: '📚', difficulty: 4, desc: 'Nemo Holderだけに開く深層。古い記録と王家の痕跡が眠る。', holderOnly: true },
+  {
+    id: 'forest', name: 'どんぐりの森', icon: '🌲', difficulty: 1,
+    desc: 'やさしい森。回復が多く、初めての探索や図鑑集め向き。',
+    guestRooms: 6, holderRooms: 8, recovery: 1.25, pressure: 0.04, pressureDamage: [1, 1],
+    commonWeight: 2, dungeonWeight: 2, style: '回復多め・初心者向け'
+  },
+  {
+    id: 'warehouse', name: '古い倉庫', icon: '📦', difficulty: 2,
+    desc: '箱、罠、忘れもの。安全策と危険な宝箱の判断が重要。',
+    guestRooms: 8, holderRooms: 10, recovery: 1.0, pressure: 0.14, pressureDamage: [1, 1],
+    commonWeight: 1, dungeonWeight: 3, style: '選択と罠・宝箱多め'
+  },
+  {
+    id: 'onsen', name: '忘れられた温泉洞', icon: '♨️', difficulty: 3,
+    desc: '回復は少なめ。危険な分、星待館や王家の痕跡に近づきやすい。',
+    guestRooms: 10, holderRooms: 12, recovery: 0.78, pressure: 0.24, pressureDamage: [1, 2],
+    commonWeight: 1, dungeonWeight: 3, style: '回復少なめ・意味深報酬'
+  },
+  {
+    id: 'archive', name: '記録者の地下回廊', icon: '📚', difficulty: 5,
+    desc: 'Nemo Holderだけに開く最深層。後半ほど危険になり、限定記録が眠る。',
+    holderRooms: 12, recovery: 0.62, pressure: 0.30, pressureDamage: [1, 2],
+    commonWeight: 0, dungeonWeight: 4, style: '高危険・Holder限定記録', holderOnly: true
+  },
 ];
 
 const LOOT = [
@@ -90,7 +110,7 @@ const RECORDER_LORE_IDS = LOOT.filter(x => x.lore === 'recorder').map(x => x.id)
 const TITLES = [
   { id: 'first-step', name: 'はじめの一歩', desc: 'はじめて冒険から帰ってきた。', test: s => s.runs >= 1 },
   { id: 'returner', name: '帰るのも冒険', desc: '自分の判断で途中帰還した。', test: s => s.manualReturns >= 1 },
-  { id: 'deep', name: '奥まで行ったねも', desc: '8部屋を踏破した。', test: s => s.clears >= 1 },
+  { id: 'deep', name: '奥まで行ったねも', desc: 'ひとつのダンジョンを最後まで踏破した。', test: s => s.clears >= 1 },
   { id: 'collector', name: '拾いもの係', desc: 'おみやげを6種類見つけた。', test: s => s.discovered >= 6 },
   { id: 'archivist', name: '小さな記録者', desc: '冒険を10回記録した。', test: s => s.runs >= 10 },
   { id: 'mystery', name: '秘密に触れたねも', desc: '説明のつかない古い品を持ち帰った。', test: s => s.hasLoreLoot },
@@ -353,8 +373,12 @@ function renderDungeons() {
     btn.className = `select-card${locked ? ' locked-dungeon' : ''}`;
     btn.dataset.id = d.id;
     btn.disabled = locked;
-    const stars = d.difficulty <= 3 ? `${'★'.repeat(d.difficulty)}${'☆'.repeat(3-d.difficulty)}` : '★★★★';
-    btn.innerHTML = `${d.holderOnly ? '<span class="holder-ribbon">HOLDER ONLY</span>' : ''}<span class="card-icon">${d.icon}</span><span class="card-title">${d.name}</span><span class="card-desc">難易度 ${stars}<br>${d.desc}</span>`;
+    const maxStars = 5;
+    const stars = `${'★'.repeat(d.difficulty)}${'☆'.repeat(Math.max(0, maxStars - d.difficulty))}`;
+    const roomInfo = d.holderOnly
+      ? `HOLDER ${d.holderRooms}ROOM`
+      : `ゲスト ${d.guestRooms}ROOM / HOLDER ${d.holderRooms}ROOM`;
+    btn.innerHTML = `${d.holderOnly ? '<span class="holder-ribbon">HOLDER ONLY</span>' : ''}<span class="card-icon">${d.icon}</span><span class="card-title">${d.name}</span><span class="card-desc">難易度 ${stars}<br><strong>${roomInfo}</strong> · ${d.style}<br>${d.desc}</span>`;
     if (!locked) btn.addEventListener('click', () => {
       state.selectedDungeon = d;
       document.querySelectorAll('#dungeonGrid .select-card').forEach(el => el.classList.toggle('selected', el.dataset.id === d.id));
@@ -385,7 +409,8 @@ function setPlayMode(mode) {
 
 function updateSelectionSummary() {
   if (state.selectedNemo && state.selectedDungeon) {
-    const suffix = state.playMode === 'holder' ? ' · 最大12ROOM' : ' · 最大8ROOM';
+    const rooms = getDungeonMaxRooms(state.selectedDungeon, state.playMode);
+    const suffix = ` · 最大${rooms}ROOM · ${state.selectedDungeon.style}`;
     $('selectionSummary').textContent = `${state.selectedNemo.name} × ${state.selectedDungeon.name}${suffix}`;
     $('startBtn').disabled = false;
   } else {
@@ -475,58 +500,23 @@ async function refreshHolderNfts() {
   $('refreshNftsBtn').disabled = true;
   $('manualVerifyStatus').textContent = '';
 
-  let nfts = [];
-  let source = '';
-  let backendError = null;
-  let directError = null;
-  let backendSucceeded = false;
-
   try {
-    // v0.9: PC/スマホ共通の本命経路。
-    // GitHub PagesからOpenSeaを直接叩かず、Cloudflare Workerを経由する。
-    if (NEMO_API_BASE) {
-      setScanStatus('Nemo Holder API経由で保有NFTを確認しています…', 'loading');
-      try {
-        const backend = await fetchNemoNftsFromBackend(state.walletAddress);
-        backendSucceeded = true;
-        nfts = dedupeNfts((backend.nfts || []).map(normalizeOpenSeaNft).filter(Boolean));
-        source = 'Nemo Holder API';
-      } catch (err) {
-        backendError = err;
-      }
-    }
-
-    // Worker未設定・一時障害時のフォールバック。
-    // スマホでは従来のOpenSea直取得が動く環境があるため残す。
-    if (!backendSucceeded) {
-      setScanStatus(NEMO_API_BASE
-        ? 'API経由の取得に失敗したため、従来方式で再確認しています…'
-        : 'Nemo Holder APIが未設定のため、従来方式で確認しています…', 'loading');
-      try {
-        const openSeaNfts = await fetchNemoNftsFromOpenSea(state.walletAddress);
-        nfts = dedupeNfts(openSeaNfts.map(normalizeOpenSeaNft).filter(Boolean));
-        source = 'OpenSea直接確認';
-      } catch (err) {
-        directError = err;
-      }
-    }
-
-    state.holderNfts = nfts;
+    if (!NEMO_API_BASE) throw new Error('Nemo Holder APIが未設定です。');
+    setScanStatus('Nemo Holder API経由で保有NFTを確認しています…', 'loading');
+    const backend = await fetchNemoNftsFromBackend(state.walletAddress);
+    state.holderNfts = dedupeNfts((backend.nfts || []).map(normalizeOpenSeaNft).filter(Boolean));
     renderHolderNemos();
 
     if (state.holderNfts.length) {
-      setScanStatus(`🔓 Nemo Holder ✓　${state.holderNfts.length}人のねもを確認しました。深層12ROOMが開きました。${source ? `（${source}）` : ''}`, 'success');
-      $('manualVerifyStatus').textContent = '';
-    } else if (backendSucceeded) {
-      setScanStatus('このウォレットではNemoCollection2023を確認できませんでした。別ウォレットの場合は接続先を変更してください。', 'warning');
+      setScanStatus(`🔓 Nemo Holder ✓　${state.holderNfts.length}人のねもを確認しました。Holderルートが開きました。（Nemo Holder API）`, 'success');
     } else {
-      setScanStatus('自動取得がうまくいきませんでした。下の「Token IDで確認」も使えます。', 'warning');
-      const parts = [];
-      if (!NEMO_API_BASE) parts.push('Nemo Holder API: 未設定');
-      if (backendError) parts.push(`Nemo Holder API: ${friendlyNetworkError(backendError)}`);
-      if (directError) parts.push(`OpenSea直接確認: ${friendlyNetworkError(directError)}`);
-      $('manualVerifyStatus').textContent = parts.join(' / ');
+      setScanStatus('このウォレットではNemoCollection2023を確認できませんでした。別ウォレットの場合は接続先を変更してください。', 'warning');
     }
+  } catch (err) {
+    state.holderNfts = [];
+    renderHolderNemos();
+    setScanStatus('自動取得がうまくいきませんでした。下の「Token IDで確認」も使えます。', 'warning');
+    $('manualVerifyStatus').textContent = `Nemo Holder API: ${friendlyNetworkError(err)}`;
   } finally {
     $('refreshNftsBtn').disabled = false;
   }
@@ -857,10 +847,66 @@ function friendlyNetworkError(err) {
   return text.length > 150 ? `${text.slice(0, 147)}…` : text;
 }
 
+function getDungeonRules() {
+  return state.selectedDungeon || DUNGEONS[0];
+}
+
+function getDungeonMaxRooms(dungeon, mode) {
+  if (!dungeon) return mode === 'holder' ? 8 : 6;
+  if (mode === 'holder') return dungeon.holderRooms || dungeon.guestRooms || 8;
+  return dungeon.guestRooms || dungeon.holderRooms || 6;
+}
+
+function repeatEvents(events, count) {
+  const out = [];
+  for (let i = 0; i < Math.max(0, count); i += 1) out.push(...events);
+  return out;
+}
+
+function dungeonPressureChance() {
+  const rules = getDungeonRules();
+  let chance = Number(rules.pressure || 0);
+  if (rules.id === 'onsen' && state.room >= 7) chance += 0.07;
+  if (rules.id === 'archive') {
+    if (state.room >= 7) chance += 0.08;
+    if (state.room >= 10) chance += 0.08;
+  }
+  return Math.min(0.55, chance);
+}
+
+function dungeonPressureMessage(effect) {
+  const rules = getDungeonRules();
+  // 休憩や慎重な選択は環境ダメージを少し避けやすい。
+  const safer = ['heal', 'smallHeal', 'bigHeal', 'deepRest', 'guard', 'forestPhoto'].includes(effect);
+  const chance = dungeonPressureChance() * (safer ? 0.35 : 1);
+  if (Math.random() >= chance) return '';
+
+  const [minDmg, maxDmg] = rules.pressureDamage || [1, 1];
+  let damage = randomInt(minDmg, maxDmg);
+  if (rules.id === 'archive' && state.room >= 10 && Math.random() < 0.35) damage += 1;
+  const before = state.hp;
+  takeDamage(damage);
+  const actual = Math.max(0, before - state.hp);
+  if (!actual) return '危ない場面だったが、ねもはうまく身をかわした。';
+
+  if (rules.id === 'warehouse') return `📦 崩れた箱に足を取られ、げんき-${actual}。`;
+  if (rules.id === 'onsen') return `♨️ 熱い蒸気と滑る岩場で、げんき-${actual}。`;
+  if (rules.id === 'archive') return `📚 深層の空気が重い。ねもは少し消耗した。げんき-${actual}。`;
+  return `🌿 小さな枝に引っかかった。げんき-${actual}。`;
+}
+
+function dungeonRareBonus() {
+  const id = getDungeonRules().id;
+  if (id === 'warehouse') return 0.14;
+  if (id === 'onsen') return 0.08;
+  if (id === 'archive') return 0.18;
+  return 0;
+}
+
 function startAdventure() {
   if (!state.selectedNemo || !state.selectedDungeon) return;
-  state.maxRooms = state.playMode === 'holder' ? 12 : 8;
   if (state.selectedDungeon.holderOnly && state.playMode !== 'holder') return;
+  state.maxRooms = getDungeonMaxRooms(state.selectedDungeon, state.playMode);
   state.maxHp = state.selectedNemo.perk === 'stamina' ? 12 : state.selectedNemo.perk === 'balance' ? 11 : state.selectedNemo.perk === 'holder' ? 11 : 10;
   state.hp = state.maxHp;
   state.room = 0;
@@ -910,13 +956,30 @@ function nextRoom() {
 }
 
 function pickEvent() {
-  let pool = [...COMMON_EVENTS, ...(DUNGEON_EVENTS[state.selectedDungeon.id] || [])];
-  if (state.playMode === 'holder' && state.room >= 9) pool = [...DEEP_EVENTS, ...DEEP_EVENTS, ...(DUNGEON_EVENTS[state.selectedDungeon.id] || [])];
+  const rules = getDungeonRules();
+  const dungeonEvents = DUNGEON_EVENTS[rules.id] || [];
+  let pool = [
+    ...repeatEvents(COMMON_EVENTS, rules.commonWeight ?? 1),
+    ...repeatEvents(dungeonEvents, rules.dungeonWeight ?? 2),
+  ];
+
+  // 「深層」は温泉洞と地下回廊だけ。倉庫の追加ROOMとは世界観を分ける。
+  if (state.playMode === 'holder' && state.room >= 9 && ['onsen', 'archive'].includes(rules.id)) {
+    pool = [...repeatEvents(DEEP_EVENTS, 2), ...repeatEvents(dungeonEvents, 2)];
+  }
+
   const fresh = pool.filter(event => !state.eventMemory.includes(event.type));
   if (fresh.length >= 3) pool = fresh;
-  if (state.room >= 4 && state.selectedDungeon.id === 'warehouse') pool = [...pool, ...DUNGEON_EVENTS.warehouse.filter(e => ['warehouse-ledger', 'warehouse-oldhall-sign', 'warehouse-clock-0451', 'warehouse-name-tag'].includes(e.type))];
-  if (state.room >= 6 && state.selectedDungeon.id === 'onsen') pool = [...pool, ...DUNGEON_EVENTS.onsen.filter(e => ['onsen-wall', 'onsen-paper', 'onsen-letter', 'onsen-naoto', 'onsen-map'].includes(e.type))];
-  if (state.playMode === 'holder' && state.room >= 10) pool = [...pool, ...DEEP_EVENTS.filter(e => ['deep-watch', 'deep-crown', 'deep-record'].includes(e.type))];
+
+  if (state.room >= 4 && rules.id === 'warehouse') {
+    pool = [...pool, ...DUNGEON_EVENTS.warehouse.filter(e => ['warehouse-ledger', 'warehouse-oldhall-sign', 'warehouse-clock-0451', 'warehouse-name-tag'].includes(e.type))];
+  }
+  if (state.room >= 6 && rules.id === 'onsen') {
+    pool = [...pool, ...DUNGEON_EVENTS.onsen.filter(e => ['onsen-wall', 'onsen-paper', 'onsen-letter', 'onsen-naoto', 'onsen-map'].includes(e.type))];
+  }
+  if (state.playMode === 'holder' && state.room >= 10 && ['onsen', 'archive'].includes(rules.id)) {
+    pool = [...pool, ...DEEP_EVENTS.filter(e => ['deep-watch', 'deep-crown', 'deep-record'].includes(e.type))];
+  }
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -948,8 +1011,8 @@ function resolveChoice(effect) {
     if (found?.lore === 'royal' || found?.lore === 'recorder') maybeTrait('深層を知っている', .22);
   } else switch (effect) {
     case 'loot': message = gainLoot(false); break;
-    case 'safeLoot': if (Math.random() < .12) takeDamage(1); message = gainLoot(Math.random() < .18); break;
-    case 'riskLoot': takeDamage(randomInt(0, 2)); message = gainLoot(Math.random() < .32); maybeTrait('箱を見ると開けたい', .32); break;
+    case 'safeLoot': if (Math.random() < (getDungeonRules().id === 'warehouse' ? .20 : .10)) takeDamage(1); message = gainLoot(Math.random() < (.18 + dungeonRareBonus())); break;
+    case 'riskLoot': { const id = getDungeonRules().id; const dmg = id === 'warehouse' ? randomInt(1, 3) : id === 'onsen' ? randomInt(1, 2) : randomInt(0, 2); takeDamage(dmg); message = gainLoot(Math.random() < (.32 + dungeonRareBonus())); maybeTrait('箱を見ると開けたい', .32); break; }
     case 'foodLoot': state.loot.push({ id: 'bun', name: '肉まん', icon: '🥟', rarity: 1, desc: '食べる前提だったはずのおみやげ。' }); message = '肉まんを大事にしまった。'; maybeTrait('肉まん鑑定士', .45); break;
     case 'heal': heal(3 + (state.selectedNemo.perk === 'balance' ? 1 : 0)); message = 'ねもは肉まんを食べて、ちょっと元気になった。'; maybeTrait('肉まん鑑定士', .35); break;
     case 'smallHeal': heal(2 + (state.selectedNemo.perk === 'balance' ? 1 : 0)); message = 'ほんの少し休んだ。ねもの顔がゆるんだ。'; break;
@@ -959,12 +1022,12 @@ function resolveChoice(effect) {
     case 'guard': if (Math.random() < .16) takeDamage(1); message = '慎重に進んだ。大きな事故は起きなかった。'; maybeTrait('慎重派', .35); break;
     case 'riskSmall': takeDamage(randomInt(0, 2)); message = '暗闇をゆっくり進んだ。'; maybeTrait('暗いところ平気', .28); break;
     case 'clever': { const idx = state.loot.findIndex(x => x.id === 'acorn'); if (idx >= 0) { state.loot.splice(idx, 1); message = 'どんぐり作戦は成功した。ハリネズミは満足そうだ。'; } else message = 'どんぐりは無かったので、ねもはゆっくり横を通った。'; maybeTrait('寄り道名人', .22); break; }
-    case 'mystery': if (Math.random() < .48) message = gainLoot(true); else { takeDamage(1); message = '読み解こうとして考えすぎた。ねもは少し疲れた。'; } break;
+    case 'mystery': { const success = getDungeonRules().id === 'warehouse' ? .52 : getDungeonRules().id === 'onsen' ? .58 : .48; if (Math.random() < success) message = gainLoot(true); else { takeDamage(getDungeonRules().id === 'archive' ? 2 : 1); message = '読み解こうとして考えすぎた。ねもは少し疲れた。'; } break; }
     case 'forestFind': if (Math.random() < .65) message = gainSpecificLoot(['blue-stone', 'star']); else { takeDamage(1); message = '袖だけ濡れた。ねもは納得していない。'; } maybeTrait('石ころ収集家', .3); break;
     case 'acorn': message = gainSpecificLoot(['acorn']); break;
     case 'forestPhoto': message = 'どんぐりの山を記録した。持ち帰らない勇気もある。'; maybeTrait('帰る判断が早い', .08); break;
     case 'trail': if (Math.random() < .55) message = gainLoot(true); else { takeDamage(1); message = '足跡は途中で消えていた。少しぞわっとした。'; } maybeTrait('足跡が気になる', .5); break;
-    case 'loreRisk': takeDamage(randomInt(0, 2)); message = Math.random() < .58 ? gainLoreLoot() : '古い通路は途中で崩れていた。今日はここまで。'; break;
+    case 'loreRisk': { const id = getDungeonRules().id; takeDamage(id === 'onsen' ? randomInt(1, 3) : randomInt(0, 2)); message = Math.random() < (id === 'onsen' ? .68 : .58) ? gainLoreLoot() : '古い通路は途中で崩れていた。今日はここまで。'; break; }
     case 'loreLoot': message = gainLoreLoot(); break;
     case 'innLore': message = gainLoreByTier('inn'); break;
     case 'royalLore': message = gainLoreByTier('royal'); maybeTrait('深層を知っている', .16); break;
@@ -973,6 +1036,8 @@ function resolveChoice(effect) {
     case 'deepLore': message = Math.random() < .68 ? gainHolderLoot() : gainLoreByTier('royal'); maybeTrait('深層を知っている', .35); break;
     case 'return': finishAdventure('return'); return;
   }
+  const pressureMessage = dungeonPressureMessage(effect);
+  if (pressureMessage) message = `${message} ${pressureMessage}`.trim();
   addLog(message);
   maybeLuckyBonus();
   maybeRandomTrait();
@@ -1015,7 +1080,8 @@ function chooseLootCandidate(candidates) {
 
 function gainLoot(forceRare = false) {
   let candidates;
-  const rareBoost = (state.selectedNemo.perk === 'rare' && Math.random() < .3) || (state.playMode === 'holder' && Math.random() < .12);
+  const dungeonBoost = dungeonRareBonus();
+  const rareBoost = (state.selectedNemo.perk === 'rare' && Math.random() < .3) || (state.playMode === 'holder' && Math.random() < .12) || (dungeonBoost > 0 && Math.random() < dungeonBoost);
   if (forceRare || rareBoost) candidates = LOOT.filter(x => x.rarity >= 2 && !x.holderOnly && !x.loreOnly);
   else candidates = LOOT.filter(x => x.rarity <= 2 && !x.holderOnly && !x.loreOnly);
   const item = chooseLootCandidate(candidates);
@@ -1062,7 +1128,11 @@ function maybeLuckyBonus() {
   addLog(`🍀 幸運のおまけ：${item.icon} ${item.name}も見つけた。`);
 }
 function takeDamage(amount) { if (state.selectedNemo.perk === 'guard' && amount > 0 && Math.random() < .55) amount = Math.max(0, amount - 1); state.hp = Math.max(0, state.hp - amount); }
-function heal(amount) { state.hp = Math.min(state.maxHp, state.hp + amount); }
+function heal(amount) {
+  const recovery = Number(getDungeonRules().recovery || 1);
+  const adjusted = Math.max(1, Math.round(amount * recovery));
+  state.hp = Math.min(state.maxHp, state.hp + adjusted);
+}
 function maybeTrait(name, chance) { if (Math.random() < chance && !state.traits.includes(name)) state.traits.push(name); }
 function maybeRandomTrait() { if (Math.random() < .11) { const candidates = TRAITS.filter(t => !state.traits.includes(t)); if (candidates.length) state.traits.push(candidates[Math.floor(Math.random() * candidates.length)]); } }
 function addLog(text) { state.log.unshift(`ROOM ${Math.max(state.room, 1)}｜${text}`); state.log = state.log.slice(0, 10); renderMiniLog(); }
@@ -1095,8 +1165,8 @@ function finishAdventure(reason) {
   let text = 'きょうの冒険も、ちゃんと思い出になりました。';
   let icon = '🐾';
   if (reason === 'clear') {
-    title = state.playMode === 'holder' && state.maxRooms === 12 ? 'ねもは深層から帰ってきた！' : 'ねもは奥までたどり着いた！';
-    text = state.playMode === 'holder' ? '自分のねもだけが見た、8つ目の部屋の向こう側。その記録もちゃんと残った。' : 'ちょっと得意げな顔で帰ってきた。明日には忘れているかもしれない。';
+    title = ['onsen', 'archive'].includes(state.selectedDungeon.id) && state.maxRooms >= 12 ? 'ねもは深層から帰ってきた！' : 'ねもは奥までたどり着いた！';
+    text = state.playMode === 'holder' && state.maxRooms > (state.selectedDungeon.guestRooms || 0) ? '自分のねもだから辿り着けた、その先の部屋。記録もちゃんと残った。' : 'ちょっと得意げな顔で帰ってきた。明日には忘れているかもしれない。';
     icon = state.playMode === 'holder' ? '🌌' : '🏕️';
     maybeTrait('洞窟慣れ', .7);
   } else if (reason === 'tired') {

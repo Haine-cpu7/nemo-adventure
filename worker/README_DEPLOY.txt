@@ -24,3 +24,6 @@ OPENSEA_API_KEY を Secret として設定してください。
 【CORS】
 初期設定は https://haine-cpu7.github.io からの利用を想定しています。
 別ドメインへ移した場合は ALLOWED_ORIGIN を変更してください。
+
+
+この完全版にはWorker v0.9.3相当のコードを同梱しています。

@@ -1,17 +1,20 @@
-ねも死なないローグライク v0.9.1
+ねも死なないローグライク v0.10
 
 Webブラウザで遊べる、ねもちゃんの「死なないローグライク」。
 NFTなしでもゲストねもで遊べます。
-NemoCollection2023ホルダーは、自分のNFTねもで深層12ROOM・Holder限定ルートへ進めます。
+NemoCollection2023ホルダーは、自分のNFTねもで各ダンジョンのより深いROOMとHolder限定ルートへ進めます。
 
-v0.9.1変更点
-- PCのNFT自動取得を「Nemo Holder API（Cloudflare Worker）」経由に変更
-- GitHub PagesからOpenSea APIを直接呼ぶ依存を減らした
-- スマホで動いていたOpenSea直接取得はフォールバックとして維持
-- Token ID手動確認も維持
-- ゲーム本体、MetaMask Connect、図鑑・冒険記録・深層設定はそのまま
+v0.10変更点：ダンジョン難易度をゲーム性として差別化
+- どんぐりの森：ゲスト6 / Holder8ROOM。回復多め、環境ダメージほぼ無し
+- 古い倉庫：ゲスト8 / Holder10ROOM。罠・危険な宝箱・選択のリスクを強化
+- 忘れられた温泉洞：ゲスト10 / Holder12ROOM。回復効率低下、環境ダメージ増加、意味深アイテム高期待
+- 記録者の地下回廊：Holder限定12ROOM。後半ほど危険度が上昇し、限定記録を狙える
+- ダンジョン固有イベントの出現比率を上げ、場所ごとの体験差を強化
+- 高難易度では環境そのものによる消耗が発生。ただし死亡せず、げんき0で帰還
+- NFTは「入場券・深層アクセス」であり、自動クリア券にはしない設計
+- Nemo Holder APIを本命経路に一本化。ブラウザからOpenSeaへ直接キー発行する旧フォールバックを停止
 
-Nemo Holder API設定済み：
+Nemo Holder API：
 https://nemo-holder-api.hnhn-ovo-hnhn.workers.dev
 
-Cloudflare Workerは公開済みなので、GitHub Pages側へこの版をアップロードすれば利用できます。
+セーブデータのキーは変更していないため、既存の冒険記録・図鑑・称号は引き継がれます。
