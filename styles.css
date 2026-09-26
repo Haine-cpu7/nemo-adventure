@@ -388,3 +388,178 @@ footer small { font-size: 11px; }
 @media (max-width: 760px) and (min-width: 601px) {
   .nemo-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* v0.4 — wallet / holder route */
+.mode-card { cursor: pointer; }
+.wallet-panel { overflow: hidden; }
+.wallet-status-chip,
+.holder-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #d8cfbf;
+  background: #f4ede0;
+  color: #74684f;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+.wallet-status-chip.connected,
+.holder-chip {
+  background: #e9eef8;
+  border-color: #c7d1e6;
+  color: #435778;
+}
+.wallet-note {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  margin: 16px 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid #d7dfd3;
+  background: #f4f8f1;
+  line-height: 1.65;
+  font-size: 13px;
+}
+.wallet-note strong { color: var(--accent-dark); }
+.wallet-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.wallet-connected-box {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px dashed #cfc5b2;
+  background: #fffaf0;
+}
+.wallet-connected-box span { color: var(--muted); font-size: 12px; font-weight: 800; }
+.wallet-connected-box code {
+  font: 800 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--ink);
+}
+.ghost.compact { min-height: 36px; padding: 8px 12px; margin-left: auto; font-size: 12px; }
+.scan-status {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f3eee5;
+  color: #6c665d;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.scan-status.loading { background: #eef3f7; color: #526479; }
+.scan-status.success { background: #e8f4e9; color: #3e6646; font-weight: 800; }
+.scan-status.warning { background: #fff4dc; color: #7b6336; }
+.scan-status.error { background: #f8e7e5; color: #8d514b; }
+.manual-verify {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fffdf8;
+}
+.manual-verify summary { cursor: pointer; font-weight: 900; color: var(--accent-dark); }
+.manual-verify p { margin: 10px 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.manual-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.manual-row input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+.manual-status { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.holder-empty {
+  grid-column: 1 / -1;
+  padding: 28px;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  text-align: center;
+  color: var(--muted);
+  background: #fffdf8;
+}
+.holder-card { border-color: #d0d8e7; }
+.holder-card.selected { border-color: #627aa1; background: #edf1f8; }
+.holder-label { color: #5e6f90; }
+.holder-ribbon {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: #4f6284;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.locked-dungeon {
+  cursor: not-allowed;
+  opacity: .62;
+  filter: saturate(.7);
+}
+.locked-dungeon::before {
+  content: "NFT HOLDERで解放";
+  position: absolute;
+  inset: auto 12px 12px auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(47,55,47,.82);
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+}
+.dungeon-archive { background: linear-gradient(135deg, #e9e4f1, #f5eee4); }
+.loot-item.holder-relic {
+  background: linear-gradient(135deg, #ece8f7, #fff8e9);
+  border-color: #a69ac3;
+  box-shadow: inset 3px 0 0 #7d6e9f;
+}
+.holder-treasure { position: relative; }
+.holder-mini {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #586c91;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.history-holder {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #e8edf7;
+  color: #536887;
+  font-size: 9px;
+  font-weight: 900;
+  vertical-align: middle;
+}
+
+@media (max-width: 700px) {
+  .wallet-note { grid-template-columns: 1fr; }
+  .wallet-actions-row { flex-direction: column; align-items: stretch; }
+  .wallet-actions-row button { width: 100%; }
+  .wallet-connected-box { align-items: flex-start; }
+  .ghost.compact { margin-left: 0; width: 100%; }
+  .manual-row { grid-template-columns: 1fr; }
+}

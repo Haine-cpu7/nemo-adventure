@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#f5efe3" />
-  <title>ねもの冒険記録 v0.3</title>
+  <title>ねもの冒険記録 v0.4</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -29,38 +29,89 @@
               <span class="label">PLAY MODE</span>
               <h2>遊び方を選ぶ</h2>
             </div>
-            <span class="guest-chip">GUEST OPEN</span>
+            <span id="modeTopChip" class="guest-chip">GUEST OPEN</span>
           </div>
           <div class="mode-grid">
-            <button class="mode-card active" type="button" aria-pressed="true">
+            <button id="guestModeBtn" class="mode-card active" type="button" aria-pressed="true">
               <span class="mode-icon">🐾</span>
               <span>
                 <strong>ゲストとして遊ぶ</strong>
                 <small>NFTなしでOK。5人のゲストねもから選んで冒険できます。</small>
               </span>
-              <span class="mode-status">いま遊べる</span>
+              <span class="mode-status">FREE</span>
             </button>
-            <button class="mode-card locked" type="button" disabled>
+            <button id="nftModeBtn" class="mode-card" type="button" aria-pressed="false">
               <span class="mode-icon">🔗</span>
               <span>
                 <strong>自分のNFTねもで遊ぶ</strong>
-                <small>ウォレット接続・深層探索・限定お宝は次のアップデートで解放予定。</small>
+                <small>ウォレットを接続してNemoCollection2023を確認。深層と限定ルートが開きます。</small>
               </span>
-              <span class="mode-status">COMING SOON</span>
+              <span id="nftModeStatus" class="mode-status">HOLDER</span>
             </button>
           </div>
         </div>
 
-        <div class="panel intro-panel">
+        <div id="walletPanel" class="panel wallet-panel hidden">
+          <div class="section-heading">
+            <div>
+              <span class="label">WALLET CONNECT</span>
+              <h2>Nemo Holderを確認</h2>
+            </div>
+            <span id="walletStatusChip" class="wallet-status-chip">未接続</span>
+          </div>
+
+          <div class="wallet-note">
+            <strong>🔒 読み取り専用です。</strong>
+            <span>ウォレットの公開アドレスとNFT保有状況だけを確認します。送金・購入・ガス代・秘密鍵の入力はありません。</span>
+          </div>
+
+          <div class="wallet-actions-row">
+            <button id="connectWalletBtn" class="primary">ウォレットを接続</button>
+            <button id="disconnectWalletBtn" class="ghost hidden">ゲーム側の接続を解除</button>
+            <button id="openMetaMaskBtn" class="ghost hidden">MetaMaskアプリで開く</button>
+          </div>
+
+          <div id="walletConnectedBox" class="wallet-connected-box hidden">
+            <span>接続中</span>
+            <code id="walletAddressText">0x...</code>
+            <button id="refreshNftsBtn" class="ghost compact">Nemo NFTを再確認</button>
+          </div>
+
+          <div id="nftScanStatus" class="scan-status">ウォレットを接続すると、NemoCollection2023を自動で探します。</div>
+
+          <details id="manualVerifyDetails" class="manual-verify hidden">
+            <summary>自動取得できない場合：Token IDで確認</summary>
+            <p>OpenSeaのアイテムURL、またはToken IDを入力してください。保有数をPolygon上で読み取って確認します。</p>
+            <div class="manual-row">
+              <input id="tokenIdInput" type="text" inputmode="numeric" autocomplete="off" placeholder="OpenSea URL または Token ID" />
+              <button id="manualVerifyBtn" class="ghost">このNFTを確認</button>
+            </div>
+            <div id="manualVerifyStatus" class="manual-status"></div>
+          </details>
+        </div>
+
+        <div id="guestNemoPanel" class="panel intro-panel">
           <div class="section-heading">
             <div>
               <span class="label">STEP 1</span>
-              <h2>きょうのねもを選ぶ</h2>
+              <h2>きょうのゲストねもを選ぶ</h2>
             </div>
             <div id="playSummary" class="play-summary">冒険 0回</div>
           </div>
           <p>この5人はゲーム専用の「ゲストねも」です。NFTではありません。見た目と小さな得意分野が違います。</p>
           <div class="nemo-grid" id="nemoGrid"></div>
+        </div>
+
+        <div id="holderNemoPanel" class="panel intro-panel hidden">
+          <div class="section-heading">
+            <div>
+              <span class="label">STEP 1 · HOLDER</span>
+              <h2>自分のねもを選ぶ</h2>
+            </div>
+            <span class="holder-chip">深層 12 ROOM</span>
+          </div>
+          <p id="holderIntroText">ウォレットを接続すると、保有しているNemoCollection2023がここに並びます。</p>
+          <div class="nemo-grid holder-nemo-grid" id="holderNemoGrid"></div>
         </div>
 
         <div class="panel">
@@ -83,10 +134,10 @@
           <div class="panel adventure-main">
             <div class="adventure-topbar">
               <div>
-                <span class="label">探索中</span>
+                <span id="adventureModeLabel" class="label">探索中</span>
                 <h2 id="adventureTitle">どんぐりの森</h2>
               </div>
-              <div class="floor-chip">ROOM <span id="roomNumber">1</span> / 8</div>
+              <div class="floor-chip">ROOM <span id="roomNumber">1</span> / <span id="roomTotal">8</span></div>
             </div>
 
             <div id="roomProgress" class="room-progress" aria-label="探索進行度"></div>
@@ -196,7 +247,7 @@
 
     <footer>
       <p>ねもは倒れません。怖くなったら、ちゃんと帰ってきます。</p>
-      <small>v0.3 · ゲストねも5体 / ブラウザ保存 / NFT接続は次段階</small>
+      <small>v0.4 · Wallet接続 / NemoCollection2023保有確認 / Holder深層12ROOM</small>
     </footer>
   </div>
 
