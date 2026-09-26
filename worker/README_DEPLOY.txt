@@ -1,29 +1,19 @@
-ねも死なないローグライク v0.9.1
-Nemo Holder API (Cloudflare Worker)
+Nemo Holder API Worker v0.9.5
 
-【いちばん簡単な公開方法：Cloudflare画面から】
-1. Cloudflareにログイン
-2. Workers & Pages → Create → Worker を作成
-3. Workerの編集画面で src/index.js の中身を貼り付けて Deploy
-4. 発行された https://xxxx.workers.dev を控える
-5. ブラウザで https://xxxx.workers.dev/health を開き、ok:true が出れば成功
-6. ゲーム側 api-config.js の baseUrl に、そのURLを貼る
-   例:
-   window.NEMO_API_CONFIG = {
-     baseUrl: 'https://xxxx.workers.dev',
-   };
-7. api-config.js をGitHub Pagesへアップロードして反映
+変更点
+- OpenSea APIは使いません。
+- Polygon上のOpenSea Shared Storefront (ERC-1155) を直接確認します。
+- v0.9.4ではToken IDのmaxSupply部分を「1」に固定していたため、1/1以外のNemoを取りこぼしていました。
+- v0.9.5では複数のedition/maxSupply値を走査し、保有中の候補だけメタデータを取得します。
+- メタデータがNemoCollection2023のものだけをゲームへ返します。
+- balanceOfBatchを256件単位、4並列で処理します。
 
-OpenSea APIキーは必須設定ではありません。
-未設定の場合、このWorkerがOpenSeaのInstant API Keyをサーバー側で取得して利用します。
+更新方法
+1. Cloudflare Dashboard > Workers & Pages > nemo-holder-api > Edit code
+2. worker.js の中を Ctrl+A → Delete
+3. このZIPの src/index.js を全文コピーして Ctrl+V
+4. Deploy
+5. Visit を開き、version が 0.9.5 になっていることを確認
+6. ゲームに戻り「Nemo NFTを再確認」を1回押す
 
-【任意：固定のOpenSea API Keyを使う場合】
-Cloudflare Workerの Settings → Variables and Secrets で
-OPENSEA_API_KEY を Secret として設定してください。
-
-【CORS】
-初期設定は https://haine-cpu7.github.io からの利用を想定しています。
-別ドメインへ移した場合は ALLOWED_ORIGIN を変更してください。
-
-
-この完全版にはWorker v0.9.3相当のコードを同梱しています。
+GitHub Pages側のファイル更新は不要です。

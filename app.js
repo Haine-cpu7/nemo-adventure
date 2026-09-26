@@ -2,7 +2,13 @@ const STORAGE = {
   history: 'nemoRogueHistoryV2',
   discoveredLoot: 'nemoRogueLootV2',
   titles: 'nemoRogueTitlesV2',
+  holderRelicMissStreak: 'nemoRogueHolderRelicMissStreakV1',
 };
+
+const BAG_CAPACITY = 5;
+const HOLDER_RELIC_PER_RUN = 1;
+const HOLDER_RELIC_ATTEMPT_LIMIT = 3;
+const HOLDER_RELIC_PITY_AFTER = 3;
 
 const COLLECTION_SLUG = 'nemocollection2023';
 const NEMO_API_BASE = String(window.NEMO_API_CONFIG?.baseUrl || '').replace(/\/+$/, '');
@@ -93,13 +99,20 @@ const LOOT = [
   { id: 'unreadable-diary', name: '読めない日記', icon: '📕', rarity: 3, lore: 'royal', loreOnly: true, desc: '文字は読めない。でも「ねも」という名前だけ、なぜか読める。' },
   { id: 'portrait-fragment', name: '古い肖像画の切れ端', icon: '🖼️', rarity: 3, lore: 'royal', loreOnly: true, desc: '顔の部分だけ破れている。衣装は、ねもが着るには少し立派すぎる。' },
 
-  // Holder深層。記録者側から見た断片が混じり始める。
-  { id: 'record-key', name: '記録者の鍵', icon: '🗝️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '普通の扉には合わない。裏面に「第七記録」と刻まれている。' },
-  { id: 'royal-thread', name: '王家の糸飾り', icon: '🎗️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '色褪せているのに、青と桃色だけが不思議と残っている。' },
-  { id: 'star-seal', name: '星待ちの封蝋', icon: '✉️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '封は切られている。誰かが一度、ここに辿り着いた。' },
-  { id: 'recorder-note', name: '記録者のメモ', icon: '🖋️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '「今日も、彼女は何も知らず笑っていた。――それでいい。」' },
-  { id: 'pocket-watch', name: '壊れた懐中時計', icon: '⌚', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '裏蓋に「王女が目覚めるまで」と刻まれている。時計は動かない。' },
-  { id: 'sealed-box', name: '封印された小箱', icon: '🎁', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '開かない。けれど近づけると、ねもの耳がほんの少し動く。' },
+  // Holder深層。1回の冒険で持ち帰れるHOLDER RELICは最大1個。
+  // minRoomより浅い階層では出現せず、深部ほど発見率が上がる。
+  { id: 'record-key', name: '記録者の鍵', icon: '🗝️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 4, desc: '普通の扉には合わない。裏面に「第七記録」と刻まれている。' },
+  { id: 'royal-thread', name: '王家の糸飾り', icon: '🎗️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 5, desc: '色褪せているのに、青と桃色だけが不思議と残っている。' },
+  { id: 'burned-photo', name: '焼けた集合写真', icon: '🖼️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 6, desc: '端が焼けている。中央の小さな人物だけ、なぜか顔が残っていない。' },
+  { id: 'star-seal', name: '星待ちの封蝋', icon: '✉️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 7, desc: '封は切られている。誰かが一度、ここに辿り着いた。' },
+  { id: 'erased-register', name: '名前の消された宿帳', icon: '📖', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 7, desc: '一行だけ丁寧に削られている。消した跡の横に小さな星印がある。' },
+  { id: 'recorder-note', name: '記録者のメモ', icon: '🖋️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 8, desc: '「今日も、彼女は何も知らず笑っていた。――それでいい。」' },
+  { id: 'blue-hairpin', name: '青い髪飾り', icon: '🪞', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 8, desc: '古い意匠なのに傷が少ない。ねもが触ると、ほんの少しだけ温かい。' },
+  { id: 'to-nemo-slip', name: '「ねもへ」と書かれた紙片', icon: '📝', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 9, desc: '本文は失われている。宛名だけが、今もはっきり残っている。' },
+  { id: 'pocket-watch', name: '壊れた懐中時計', icon: '⌚', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 10, desc: '裏蓋に「王女が目覚めるまで」と刻まれている。時計は動かない。' },
+  { id: 'record-seal', name: '記録者の封印札', icon: '🔖', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 10, desc: '「開封は継承者のみ」。誰の継承者なのかは書かれていない。' },
+  { id: 'empty-crown-case', name: '空の王冠箱', icon: '👑', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 11, desc: '中身は空。柔らかな布に、小さな猫耳のような跡だけが残っている。' },
+  { id: 'sealed-box', name: '封印された小箱', icon: '🎁', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, minRoom: 12, desc: '開かない。けれど近づけると、ねもの耳がほんの少し動く。' },
 ];
 
 const INN_LORE_IDS = LOOT.filter(x => x.lore === 'inn').map(x => x.id);
@@ -117,6 +130,8 @@ const TITLES = [
   { id: 'star-inn-fragments', name: '星待ちの忘れもの', desc: '「星待」につながる品を3種類見つけた。', test: s => s.innLore >= 3 },
   { id: 'unknown-crest', name: '知らないはずの紋章', desc: '王家に関わる品を3種類見つけた。', test: s => s.royalLore >= 3 },
   { id: 'watched-record', name: '見守られていた記録', desc: '記録者に関わる品を2種類見つけた。', test: s => s.recorderLore >= 2 },
+  { id: 'deep-archive-fragments', name: '深層の断片', desc: 'HOLDER RELICを6種類見つけた。', test: s => s.recorderLore >= 6 },
+  { id: 'twelve-records', name: '十二の記録', desc: 'HOLDER RELICを12種類すべて見つけた。', test: s => s.recorderLore >= 12 },
   { id: 'holder-step', name: 'ねもと一緒に', desc: '自分のNFTねもで冒険した。', test: s => s.holderRuns >= 1 },
   { id: 'beyond-eight', name: '境界の向こう', desc: 'NFTねもでROOM 12まで到達した。', test: s => s.deep12 >= 1 },
   { id: 'underground-archive', name: '記録者の客人', desc: '記録者の地下回廊を踏破した。', test: s => s.archiveClears >= 1 },
@@ -157,13 +172,16 @@ const DUNGEON_EVENTS = {
   ],
   archive: [
     { type: 'archive-shelves', icon: '📚', kicker: '地下書庫', title: '壁一面に古い記録が並んでいる', text: '名前のない背表紙ばかり。そのうち一冊だけ、ねもの足元で少し開いている。', choices: [{ label: '開いてみる', effect: 'holderLoot' }, { label: 'まず棚番号を写す', effect: 'deepLore' }] },
-    { type: 'archive-door', icon: '🚪', kicker: '封じた扉', title: '小さな王冠の刻印がある扉', text: '鍵穴はある。でも鍵の形が見たことのないものだ。', choices: [{ label: '鍵穴を調べる', effect: 'holderLoot' }, { label: '扉の文字を読む', effect: 'royalLore' }] },
-    { type: 'archive-chair', icon: '🪑', kicker: '休憩室', title: '一脚だけ椅子が残っている', text: '埃が積もっていない。さっきまで誰かが座っていたみたいだ。', choices: [{ label: '少し休む', effect: 'deepRest' }, { label: '周囲を探す', effect: 'holderLoot' }] },
-    { type: 'archive-thread', icon: '🎗️', kicker: '細い糸', title: '床に桃色と青の糸が落ちている', text: 'ねもはなぜか、それを見てしばらく動かなかった。', choices: [{ label: '大切に持ち帰る', effect: 'item:royal-thread' }, { label: '場所だけ覚えておく', effect: 'deepLore' }] },
+    { type: 'archive-door', minRoom: 4, icon: '🚪', kicker: '封じた扉', title: '小さな王冠の刻印がある扉', text: '鍵穴はある。でも鍵の形が見たことのないものだ。', choices: [{ label: '鍵穴を調べる', effect: 'holderLoot' }, { label: '扉の文字を読む', effect: 'royalLore' }] },
+    { type: 'archive-chair', minRoom: 4, icon: '🪑', kicker: '休憩室', title: '一脚だけ椅子が残っている', text: '埃が積もっていない。さっきまで誰かが座っていたみたいだ。', choices: [{ label: '少し休む', effect: 'deepRest' }, { label: '周囲を探す', effect: 'holderLoot' }] },
+    { type: 'archive-thread', minRoom: 5, icon: '🎗️', kicker: '細い糸', title: '床に桃色と青の糸が落ちている', text: 'ねもはなぜか、それを見てしばらく動かなかった。', choices: [{ label: '大切に持ち帰る', effect: 'item:royal-thread' }, { label: '場所だけ覚えておく', effect: 'deepLore' }] },
     { type: 'archive-portrait', icon: '🖼️', kicker: '肖像画', title: '布をかぶった古い額縁がある', text: '顔の部分だけが破れている。でも衣装には小さな王冠の意匠がある。', choices: [{ label: '切れ端を拾う', effect: 'item:portrait-fragment' }, { label: '額縁の裏を調べる', effect: 'recorderLore' }] },
     { type: 'archive-diary', icon: '📕', kicker: '読めない本', title: '知らない文字で書かれた日記がある', text: '一行も読めないはずなのに、ねもは一か所だけ指を止めた。', choices: [{ label: 'その本を持ち帰る', effect: 'item:unreadable-diary' }, { label: '指を止めた行だけ写す', effect: 'royalLore' }] },
-    { type: 'archive-note', icon: '🖋️', kicker: '走り書き', title: '机の引き出しに一枚だけメモがある', text: '「今日も、彼女は何も知らず笑っていた。」その下は墨で消されている。', choices: [{ label: 'メモを持ち帰る', effect: 'item:recorder-note' }, { label: '消された部分を見る', effect: 'recorderLore' }] },
-    { type: 'archive-box', icon: '🎁', kicker: '封印', title: '棚の奥に小さな箱がある', text: '鍵も継ぎ目もない。でも、ねもが近づくと耳がほんの少し動いた。', choices: [{ label: '箱を持ち帰る', effect: 'item:sealed-box' }, { label: '箱の周りを調べる', effect: 'holderLoot' }] },
+    { type: 'archive-note', minRoom: 8, icon: '🖋️', kicker: '走り書き', title: '机の引き出しに一枚だけメモがある', text: '「今日も、彼女は何も知らず笑っていた。」その下は墨で消されている。', choices: [{ label: 'メモを持ち帰る', effect: 'item:recorder-note' }, { label: '消された部分を見る', effect: 'recorderLore' }] },
+    { type: 'archive-photo-burned', minRoom: 6, icon: '🖼️', kicker: '焦げた写真', title: '棚の裏から焼けた写真が滑り落ちた', text: '何人かが並んでいる。中央だけ、顔の部分が黒く失われている。', choices: [{ label: '写真を拾う', effect: 'item:burned-photo' }, { label: '裏面の文字を見る', effect: 'deepLore' }] },
+    { type: 'archive-hairpin', minRoom: 8, icon: '🪞', kicker: '青い飾り', title: '記録箱の底に青い髪飾りがある', text: '誰かが何度も磨いたように、そこだけ埃がない。', choices: [{ label: '持ち帰る', effect: 'item:blue-hairpin' }, { label: '箱の番号を記録する', effect: 'deepLore' }] },
+    { type: 'archive-nemo-slip', minRoom: 9, icon: '📝', kicker: '宛名', title: '破れた紙片に「ねもへ」とある', text: '本文はない。ただ、その二文字だけが残っている。', choices: [{ label: '紙片をしまう', effect: 'item:to-nemo-slip' }, { label: '周囲に続きがないか探す', effect: 'recorderLore' }] },
+    { type: 'archive-box', minRoom: 12, icon: '🎁', kicker: '封印', title: '棚の奥に小さな箱がある', text: '鍵も継ぎ目もない。でも、ねもが近づくと耳がほんの少し動いた。', choices: [{ label: '箱を持ち帰る', effect: 'item:sealed-box' }, { label: '箱の周りを調べる', effect: 'holderLoot' }] },
   ],
 };
 
@@ -171,7 +189,7 @@ const DEEP_EVENTS = [
   { type: 'deep-gate', icon: '🌌', kicker: '深層', title: '8つ目の部屋の先に、まだ道があった', text: 'ゲストねもには見えなかった扉。自分のねもは迷わずその先を見る。', choices: [{ label: 'さらに奥へ', effect: 'deepLore' }, { label: '扉のそばを探す', effect: 'holderLoot' }] },
   { type: 'deep-star', icon: '✦', kicker: '静かな部屋', title: '天井に星の形の穴がある', text: '差し込んだ光が床の古い印だけを照らしている。', choices: [{ label: '印を写す', effect: 'royalLore' }, { label: '光の下で休む', effect: 'deepRest' }] },
   { type: 'deep-whisper', icon: '🕯️', kicker: '深層', title: '誰もいないのに紙をめくる音がする', text: '怖くはない。ただ、ここに来るのを待たれていた気がする。', choices: [{ label: '音の方へ行く', effect: 'recorderLore' }, { label: '足跡を確認する', effect: 'deepLore' }] },
-  { type: 'deep-watch', icon: '⌚', kicker: '深層の机', title: '壊れた懐中時計が一つだけ置かれている', text: '裏蓋には短い文字。ねもは読まずに、しばらく時計を見ている。', choices: [{ label: '時計を持ち帰る', effect: 'item:pocket-watch' }, { label: '裏蓋の文字だけ記録する', effect: 'recorderLore' }] },
+  { type: 'deep-watch', minRoom: 10, icon: '⌚', kicker: '深層の机', title: '壊れた懐中時計が一つだけ置かれている', text: '裏蓋には短い文字。ねもは読まずに、しばらく時計を見ている。', choices: [{ label: '時計を持ち帰る', effect: 'item:pocket-watch' }, { label: '裏蓋の文字だけ記録する', effect: 'recorderLore' }] },
   { type: 'deep-crown', icon: '♛', kicker: '小さな飾り', title: '布の上に小さな冠の飾りが置かれている', text: '誰かが「帰ってくるまで」ここに置いていたように見える。', choices: [{ label: 'そっと持ち帰る', effect: 'item:crown-ornament' }, { label: '触れずに観察する', effect: 'royalLore' }] },
   { type: 'deep-record', icon: '📜', kicker: '第七記録', title: '棚の一角だけ番号の振り方が違う', text: '「第七記録」。その文字を見たとき、ねもが一度だけ後ろを振り返った。', choices: [{ label: '記録を調べる', effect: 'recorderLore' }, { label: '鍵穴を探す', effect: 'item:record-key' }] },
 ];
@@ -194,6 +212,10 @@ const state = {
   currentEvent: null,
   finished: false,
   eventMemory: [],
+  pendingLoot: null,
+  pendingLootIsHolderRelic: false,
+  holderRelicFound: false,
+  holderRelicAttempts: 0,
 };
 
 const $ = id => document.getElementById(id);
@@ -954,6 +976,10 @@ function startAdventure() {
   state.traits = [];
   state.log = [];
   state.eventMemory = [];
+  state.pendingLoot = null;
+  state.pendingLootIsHolderRelic = false;
+  state.holderRelicFound = false;
+  state.holderRelicAttempts = 0;
   state.finished = false;
   $('adventureTitle').textContent = state.selectedDungeon.name;
   $('adventureModeLabel').textContent = state.playMode === 'holder' ? 'NFT NEMO · HOLDER ROUTE' : '探索中';
@@ -1006,7 +1032,7 @@ function nextRoom() {
 
 function pickEvent() {
   const rules = getDungeonRules();
-  const dungeonEvents = DUNGEON_EVENTS[rules.id] || [];
+  const dungeonEvents = (DUNGEON_EVENTS[rules.id] || []).filter(event => !event.minRoom || state.room >= event.minRoom);
   let pool = [
     ...repeatEvents(COMMON_EVENTS, rules.commonWeight ?? 1),
     ...repeatEvents(dungeonEvents, rules.dungeonWeight ?? 2),
@@ -1014,7 +1040,7 @@ function pickEvent() {
 
   // 「深層」は温泉洞と地下回廊だけ。倉庫の追加ROOMとは世界観を分ける。
   if (state.playMode === 'holder' && state.room >= 9 && ['onsen', 'archive'].includes(rules.id)) {
-    pool = [...repeatEvents(DEEP_EVENTS, 2), ...repeatEvents(dungeonEvents, 2)];
+    pool = [...repeatEvents(DEEP_EVENTS.filter(event => !event.minRoom || state.room >= event.minRoom), 2), ...repeatEvents(dungeonEvents, 2)];
   }
 
   const fresh = pool.filter(event => !state.eventMemory.includes(event.type));
@@ -1027,7 +1053,7 @@ function pickEvent() {
     pool = [...pool, ...DUNGEON_EVENTS.onsen.filter(e => ['onsen-wall', 'onsen-paper', 'onsen-letter', 'onsen-naoto', 'onsen-map'].includes(e.type))];
   }
   if (state.playMode === 'holder' && state.room >= 10 && ['onsen', 'archive'].includes(rules.id)) {
-    pool = [...pool, ...DEEP_EVENTS.filter(e => ['deep-watch', 'deep-crown', 'deep-record'].includes(e.type))];
+    pool = [...pool, ...DEEP_EVENTS.filter(e => ['deep-watch', 'deep-crown', 'deep-record'].includes(e.type) && (!e.minRoom || state.room >= e.minRoom))];
   }
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -1062,7 +1088,7 @@ function resolveChoice(effect) {
     case 'loot': message = gainLoot(false); break;
     case 'safeLoot': if (Math.random() < (getDungeonRules().id === 'warehouse' ? .20 : .10)) takeDamage(1); message = gainLoot(Math.random() < (.18 + dungeonRareBonus())); break;
     case 'riskLoot': { const id = getDungeonRules().id; const dmg = id === 'warehouse' ? randomInt(1, 3) : id === 'onsen' ? randomInt(1, 2) : randomInt(0, 2); takeDamage(dmg); message = gainLoot(Math.random() < (.32 + dungeonRareBonus())); maybeTrait('箱を見ると開けたい', .32); break; }
-    case 'foodLoot': state.loot.push({ id: 'bun', name: '肉まん', icon: '🥟', rarity: 1, desc: '食べる前提だったはずのおみやげ。' }); message = '肉まんを大事にしまった。'; maybeTrait('肉まん鑑定士', .45); break;
+    case 'foodLoot': message = addLootToBag({ id: 'bun', name: '肉まん', icon: '🥟', rarity: 1, desc: '食べる前提だったはずのおみやげ。' }, '肉まんを大事にしまった。'); maybeTrait('肉まん鑑定士', .45); break;
     case 'heal': heal(3 + (state.selectedNemo.perk === 'balance' ? 1 : 0)); message = 'ねもは肉まんを食べて、ちょっと元気になった。'; maybeTrait('肉まん鑑定士', .35); break;
     case 'smallHeal': heal(2 + (state.selectedNemo.perk === 'balance' ? 1 : 0)); message = 'ほんの少し休んだ。ねもの顔がゆるんだ。'; break;
     case 'bigHeal': heal(4 + (state.selectedNemo.perk === 'balance' ? 1 : 0)); message = '足湯した。冒険中なのに、完全にくつろいでいる。'; maybeTrait('温泉好き', .55); break;
@@ -1088,6 +1114,10 @@ function resolveChoice(effect) {
   const pressureMessage = dungeonPressureMessage(effect);
   if (pressureMessage) message = `${message} ${pressureMessage}`.trim();
   addLog(message);
+  if (state.pendingLoot) {
+    renderBagSwap(message);
+    return;
+  }
   maybeLuckyBonus();
   maybeRandomTrait();
   renderAfterChoice(message);
@@ -1127,6 +1157,66 @@ function chooseLootCandidate(candidates) {
   return { ...pool[Math.floor(Math.random() * pool.length)] };
 }
 
+function addLootToBag(item, successMessage = '') {
+  if (!item) return '何も見つからなかった。';
+  const copy = { ...item };
+  if (state.loot.length < BAG_CAPACITY) {
+    state.loot.push(copy);
+    return successMessage || `${copy.icon} ${copy.name}を見つけた。`;
+  }
+  state.pendingLoot = copy;
+  state.pendingLootIsHolderRelic = Boolean(copy.holderOnly);
+  return `🎒 バッグがいっぱい。${copy.icon} ${copy.name}を見つけた。持ち帰るなら、何かひとつ置いていこう。`;
+}
+
+function renderBagSwap(message) {
+  const item = state.pendingLoot;
+  if (!item) return renderAfterChoice(message);
+  $('sceneKicker').textContent = 'バッグ 5 / 5';
+  $('sceneTitle').textContent = `${item.icon} ${item.name}を持ち帰る？`;
+  $('sceneText').textContent = 'ねもが持ち帰れるのは5個まで。いま持っている物をひとつ置くか、新しく見つけた物を置いていこう。';
+  const area = $('choiceArea');
+  area.innerHTML = '';
+  state.loot.forEach((oldItem, index) => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.disabled = Boolean(oldItem.holderOnly);
+    btn.textContent = oldItem.holderOnly
+      ? `🔒 ${oldItem.icon} ${oldItem.name}（深層遺物は保護）`
+      : `${oldItem.icon} ${oldItem.name}を置いて入れ替える`;
+    if (!btn.disabled) btn.addEventListener('click', () => completeBagSwap(index));
+    area.appendChild(btn);
+  });
+  const leaveBtn = document.createElement('button');
+  leaveBtn.className = 'choice-btn';
+  leaveBtn.textContent = `${item.icon} ${item.name}は置いていく`;
+  leaveBtn.addEventListener('click', () => completeBagSwap(-1));
+  area.appendChild(leaveBtn);
+  $('continueBtn').disabled = true;
+  updateHUD();
+}
+
+function completeBagSwap(index) {
+  const item = state.pendingLoot;
+  const pendingWasHolderRelic = state.pendingLootIsHolderRelic;
+  if (!item) return;
+  let message = '';
+  if (index >= 0) {
+    const removed = state.loot[index];
+    state.loot.splice(index, 1, item);
+    if (pendingWasHolderRelic) state.holderRelicFound = true;
+    message = `${removed.icon} ${removed.name}を置いて、${item.icon} ${item.name}をバッグに入れた。`;
+  } else {
+    message = `${item.icon} ${item.name}は、その場所にそっと戻しておいた。`;
+  }
+  state.pendingLoot = null;
+  state.pendingLootIsHolderRelic = false;
+  addLog(message);
+  maybeRandomTrait();
+  renderAfterChoice(message);
+  if (state.hp <= 0) setTimeout(() => finishAdventure('tired'), 250);
+}
+
 function gainLoot(forceRare = false) {
   let candidates;
   const dungeonBoost = dungeonRareBonus();
@@ -1135,25 +1225,27 @@ function gainLoot(forceRare = false) {
   else candidates = LOOT.filter(x => x.rarity <= 2 && !x.holderOnly && !x.loreOnly);
   const item = chooseLootCandidate(candidates);
   if (!item) return '何も見つからなかった。';
-  state.loot.push(item);
   maybeTrait('拾いもの上手', .16);
-  return `${item.icon} ${item.name}を見つけた。`;
+  return addLootToBag(item, `${item.icon} ${item.name}を見つけた。`);
 }
+
 function gainSpecificLoot(ids) {
   const candidates = LOOT.filter(x => ids.includes(x.id));
   const item = chooseLootCandidate(candidates);
   if (!item) return 'そこには何も残っていなかった。';
-  state.loot.push(item);
-  return `${item.icon} ${item.name}を見つけた。`;
+  if (item.holderOnly) return attemptHolderRelic(item);
+  return addLootToBag(item, `${item.icon} ${item.name}を見つけた。`);
 }
+
 function gainLoreByTier(tier) {
+  if (tier === 'recorder' && state.playMode === 'holder') return gainHolderLoot();
   let candidates = LOOT.filter(x => x.lore === tier && !x.holderOnly);
-  if (tier === 'recorder') candidates = state.playMode === 'holder' ? LOOT.filter(x => x.lore === 'recorder') : LOOT.filter(x => x.lore === 'royal' && !x.holderOnly);
+  if (tier === 'recorder') candidates = LOOT.filter(x => x.lore === 'royal' && !x.holderOnly);
   const item = chooseLootCandidate(candidates);
   if (!item) return '古い痕跡はあったが、持ち帰れるものはなかった。';
-  state.loot.push(item);
-  return `${item.icon} ${item.name}を見つけた。ねもは少しだけ、その場から動かなかった。`;
+  return addLootToBag(item, `${item.icon} ${item.name}を見つけた。ねもは少しだけ、その場から動かなかった。`);
 }
+
 function gainLoreLoot() {
   let tier = 'royal';
   if (state.selectedDungeon?.id === 'warehouse') tier = 'inn';
@@ -1161,21 +1253,77 @@ function gainLoreLoot() {
   else if (state.selectedDungeon?.id === 'archive') tier = state.playMode === 'holder' && Math.random() < .55 ? 'recorder' : 'royal';
   return gainLoreByTier(tier);
 }
-function gainHolderLoot() {
-  if (state.playMode !== 'holder') return gainLoreLoot();
-  const candidates = LOOT.filter(x => x.holderOnly);
-  const item = chooseLootCandidate(candidates);
-  if (!item) return '深層の棚は空だった。誰かが先に持ち出したのかもしれない。';
-  state.loot.push(item);
-  return `${item.icon} ${item.name}を見つけた。ここまで来たねもにだけ見つけられたものらしい。`;
+
+function getHolderRelicMissStreak() {
+  const value = Number(localStorage.getItem(STORAGE.holderRelicMissStreak) || 0);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
+
+function setHolderRelicMissStreak(value) {
+  localStorage.setItem(STORAGE.holderRelicMissStreak, String(Math.max(0, Math.floor(Number(value) || 0))));
+}
+
+function holderRelicDropChance() {
+  if (state.room >= 12) return .50;
+  if (state.room >= 11) return .40;
+  if (state.room >= 9) return .32;
+  if (state.room >= 7) return .25;
+  if (state.room >= 4) return .18;
+  return 0;
+}
+
+function attemptHolderRelic(specificItem = null) {
+  if (state.playMode !== 'holder' || state.selectedDungeon?.id !== 'archive') {
+    return gainLoreByTier('royal');
+  }
+  if (state.holderRelicFound) {
+    return 'この冒険では、もうひとつ深層遺物を見つけている。ねもは欲張らず先へ進むことにした。';
+  }
+  if (state.holderRelicAttempts >= HOLDER_RELIC_ATTEMPT_LIMIT) {
+    return '今日はもう、深層の記録は姿を見せなかった。別の日なら見つかるかもしれない。';
+  }
+
+  const discovered = new Set(getSavedArray(STORAGE.discoveredLoot));
+  let candidates = LOOT.filter(item => item.holderOnly && (item.minRoom || 1) <= state.room && !discovered.has(item.id));
+  if (specificItem) {
+    if ((specificItem.minRoom || 1) > state.room) return 'まだ浅すぎる。ねもはその品に触れず、場所だけ覚えておいた。';
+    if (discovered.has(specificItem.id)) return '以前にも見つけた記録だ。ねもはそっと元の場所へ戻した。';
+    candidates = candidates.filter(item => item.id === specificItem.id);
+  }
+  if (!candidates.length) {
+    return '棚には見覚えのある記録しか残っていなかった。';
+  }
+
+  state.holderRelicAttempts += 1;
+  const pityActive = getHolderRelicMissStreak() >= HOLDER_RELIC_PITY_AFTER;
+  const chance = pityActive ? 1 : holderRelicDropChance();
+  if (Math.random() >= chance) {
+    return '深層の痕跡はあった。でも、持ち帰れる形では残っていなかった。';
+  }
+
+  const item = specificItem ? { ...specificItem } : { ...candidates[Math.floor(Math.random() * candidates.length)] };
+  const message = addLootToBag(item, `${item.icon} ${item.name}を見つけた。ここまで来たねもにだけ見つけられたものらしい。`);
+  if (!state.pendingLoot) state.holderRelicFound = true;
+  else state.pendingLootIsHolderRelic = true;
+  return message;
+}
+
+function gainHolderLoot() {
+  return attemptHolderRelic();
+}
+
 function maybeLuckyBonus() {
   if (state.selectedNemo?.perk !== 'lucky' || Math.random() >= .16) return;
+  if (state.loot.length >= BAG_CAPACITY) {
+    addLog('🍀 もうひとつ見つけたけれど、バッグがいっぱいなので置いてきた。');
+    return;
+  }
   const candidates = LOOT.filter(x => x.rarity === 1 && !x.loreOnly);
   const item = { ...candidates[Math.floor(Math.random() * candidates.length)] };
   state.loot.push(item);
   addLog(`🍀 幸運のおまけ：${item.icon} ${item.name}も見つけた。`);
 }
+
 function takeDamage(amount) { if (state.selectedNemo.perk === 'guard' && amount > 0 && Math.random() < .55) amount = Math.max(0, amount - 1); state.hp = Math.max(0, state.hp - amount); }
 function heal(amount) {
   const recovery = Number(getDungeonRules().recovery || 1);
@@ -1196,7 +1344,9 @@ function updateHUD() {
 function lootClass(item) { return item.rarity === 4 ? 'loot-item holder-relic' : item.rarity === 3 ? 'loot-item legendary' : item.rarity === 2 ? 'loot-item rare' : 'loot-item'; }
 function renderLoot() {
   const el = $('lootList');
-  if (!state.loot.length) { el.className = 'loot-list empty'; el.textContent = 'まだ何も拾っていない'; return; }
+  const heading = $('lootHeading');
+  if (heading) heading.innerHTML = `今回の戦利品 <span class="bag-count">${state.loot.length}/${BAG_CAPACITY}</span>`;
+  if (!state.loot.length) { el.className = 'loot-list empty'; el.textContent = `まだ何も拾っていない（バッグ ${BAG_CAPACITY}枠）`; return; }
   el.className = 'loot-list';
   el.innerHTML = state.loot.map(x => `<div class="${lootClass(x)}">${x.icon} ${x.name}</div>`).join('');
 }
@@ -1222,6 +1372,12 @@ function finishAdventure(reason) {
     title = 'ねもは疲れたので帰ってきました'; text = '倒れたわけではない。今日はもう十分だっただけ。'; icon = '🛌'; maybeTrait('帰る判断が早い', .6);
   } else {
     title = 'ねもは自分の判断で帰ってきました'; text = '冒険は、奥まで行くことだけが正解ではありません。'; icon = '🏡'; maybeTrait('帰る判断が早い', .25);
+  }
+
+  if (state.playMode === 'holder' && state.selectedDungeon.id === 'archive' && reason === 'clear') {
+    const carriedRelic = state.loot.some(item => item.holderOnly);
+    if (carriedRelic) setHolderRelicMissStreak(0);
+    else setHolderRelicMissStreak(getHolderRelicMissStreak() + 1);
   }
 
   const record = {

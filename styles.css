@@ -563,3 +563,15 @@ footer small { font-size: 11px; }
   .ghost.compact { margin-left: 0; width: 100%; }
   .manual-row { grid-template-columns: 1fr; }
 }
+
+.bag-count {
+  display: inline-block;
+  margin-left: .45rem;
+  padding: .1rem .45rem;
+  border-radius: 999px;
+  font-size: .78em;
+  font-weight: 800;
+  background: #efe7d7;
+  color: #5e665d;
+  vertical-align: middle;
+}
