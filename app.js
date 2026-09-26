@@ -40,26 +40,26 @@ const DUNGEONS = [
   {
     id: 'forest', name: 'どんぐりの森', icon: '🌲', difficulty: 1,
     desc: 'やさしい森。回復が多く、初めての探索や図鑑集め向き。',
-    guestRooms: 6, holderRooms: 8, recovery: 1.25, pressure: 0.04, pressureDamage: [1, 1],
+    guestRooms: 6, holderRooms: 8, recovery: 1.25, pressure: 0.03, pressureDamage: [1, 1], safePressureFactor: 0.25,
     commonWeight: 2, dungeonWeight: 2, style: '回復多め・初心者向け'
   },
   {
     id: 'warehouse', name: '古い倉庫', icon: '📦', difficulty: 2,
     desc: '箱、罠、忘れもの。安全策と危険な宝箱の判断が重要。',
-    guestRooms: 8, holderRooms: 10, recovery: 1.0, pressure: 0.14, pressureDamage: [1, 1],
-    commonWeight: 1, dungeonWeight: 3, style: '選択と罠・宝箱多め'
+    guestRooms: 8, holderRooms: 10, recovery: 0.95, pressure: 0.18, pressureDamage: [1, 2], safePressureFactor: 0.55,
+    commonWeight: 1, dungeonWeight: 4, style: '選択と罠・宝箱多め'
   },
   {
     id: 'onsen', name: '忘れられた温泉洞', icon: '♨️', difficulty: 3,
-    desc: '回復は少なめ。危険な分、星待館や王家の痕跡に近づきやすい。',
-    guestRooms: 10, holderRooms: 12, recovery: 0.78, pressure: 0.24, pressureDamage: [1, 2],
-    commonWeight: 1, dungeonWeight: 3, style: '回復少なめ・意味深報酬'
+    desc: 'ROOM5から危険度が上がる。回復は弱く、深部ほど蒸気と岩場で消耗する。',
+    guestRooms: 10, holderRooms: 12, recovery: 0.55, pressure: 0.42, pressureDamage: [1, 2], safePressureFactor: 0.75,
+    commonWeight: 1, dungeonWeight: 5, style: '中盤から急に危険・深部は帰還前提'
   },
   {
     id: 'archive', name: '記録者の地下回廊', icon: '📚', difficulty: 5,
-    desc: 'Nemo Holderだけに開く最深層。後半ほど危険になり、限定記録が眠る。',
-    holderRooms: 12, recovery: 0.62, pressure: 0.30, pressureDamage: [1, 2],
-    commonWeight: 0, dungeonWeight: 4, style: '高危険・Holder限定記録', holderOnly: true
+    desc: 'Nemo Holderだけに開く最深層。最奥到達は珍しく、途中帰還もひとつの記録になる。',
+    holderRooms: 12, recovery: 0.40, pressure: 0.55, pressureDamage: [1, 3], safePressureFactor: 0.90,
+    commonWeight: 0, dungeonWeight: 5, style: '極高危険・最奥到達はレア', holderOnly: true
   },
 ];
 
@@ -866,24 +866,64 @@ function repeatEvents(events, count) {
 function dungeonPressureChance() {
   const rules = getDungeonRules();
   let chance = Number(rules.pressure || 0);
-  if (rules.id === 'onsen' && state.room >= 7) chance += 0.07;
-  if (rules.id === 'archive') {
-    if (state.room >= 7) chance += 0.08;
-    if (state.room >= 10) chance += 0.08;
+  if (rules.id === 'warehouse' && state.room >= 6) chance += 0.08;
+  if (rules.id === 'onsen') {
+    if (state.room >= 5) chance += 0.08;
+    if (state.room >= 8) chance += 0.12;
+    if (state.room >= 11) chance += 0.08;
   }
-  return Math.min(0.55, chance);
+  if (rules.id === 'archive') {
+    if (state.room >= 4) chance += 0.08;
+    if (state.room >= 7) chance += 0.10;
+    if (state.room >= 10) chance += 0.10;
+  }
+  return Math.min(0.82, chance);
+}
+
+function dungeonEntryHazardMessage() {
+  const rules = getDungeonRules();
+  let chance = 0;
+  let damageRange = [1, 1];
+  let message = '';
+
+  if (rules.id === 'warehouse' && state.room >= 6) {
+    chance = 0.16;
+    damageRange = [1, 1];
+    message = '📦 足元の板が沈んだ。古い倉庫そのものが罠みたいだ。';
+  }
+  if (rules.id === 'onsen') {
+    if (state.room >= 5) { chance = 0.24; damageRange = [1, 1]; }
+    if (state.room >= 8) { chance = 0.42; damageRange = [1, 2]; }
+    if (state.room >= 11) { chance = 0.58; damageRange = [1, 2]; }
+    message = '♨️ 奥へ進むほど空気が熱い。立っているだけでも体力を使う。';
+  }
+  if (rules.id === 'archive') {
+    if (state.room >= 4) { chance = 0.32; damageRange = [1, 1]; }
+    if (state.room >= 7) { chance = 0.54; damageRange = [1, 2]; }
+    if (state.room >= 10) { chance = 0.72; damageRange = [1, 2]; }
+    message = '📚 深層へ下りるほど息が重い。ここは長く居る場所ではない。';
+  }
+
+  if (!chance || Math.random() >= chance) return '';
+  const before = state.hp;
+  takeDamage(randomInt(...damageRange));
+  const actual = Math.max(0, before - state.hp);
+  if (!actual) return `${message} でも、ねもはうまくやり過ごした。`;
+  return `${message} げんき-${actual}。`;
 }
 
 function dungeonPressureMessage(effect) {
   const rules = getDungeonRules();
-  // 休憩や慎重な選択は環境ダメージを少し避けやすい。
+  // 高難易度では慎重に進んでも、環境そのものからは完全には逃れられない。
   const safer = ['heal', 'smallHeal', 'bigHeal', 'deepRest', 'guard', 'forestPhoto'].includes(effect);
-  const chance = dungeonPressureChance() * (safer ? 0.35 : 1);
+  const safeFactor = Number(rules.safePressureFactor ?? 0.35);
+  const chance = dungeonPressureChance() * (safer ? safeFactor : 1);
   if (Math.random() >= chance) return '';
 
   const [minDmg, maxDmg] = rules.pressureDamage || [1, 1];
   let damage = randomInt(minDmg, maxDmg);
-  if (rules.id === 'archive' && state.room >= 10 && Math.random() < 0.35) damage += 1;
+  if (rules.id === 'onsen' && state.room >= 8 && Math.random() < 0.25) damage += 1;
+  if (rules.id === 'archive' && state.room >= 10 && Math.random() < 0.50) damage += 1;
   const before = state.hp;
   takeDamage(damage);
   const actual = Math.max(0, before - state.hp);
@@ -948,11 +988,20 @@ function nextRoom() {
   $('roomNumber').textContent = state.room;
   updateRoomProgress();
   if (state.room > state.maxRooms) { finishAdventure('clear'); return; }
+
+  const entryHazard = dungeonEntryHazardMessage();
+  if (entryHazard) addLog(entryHazard);
+  if (state.hp <= 0) {
+    updateHUD();
+    finishAdventure('tired');
+    return;
+  }
+
   const event = pickEvent();
   state.currentEvent = event;
   state.eventMemory.push(event.type);
   state.eventMemory = state.eventMemory.slice(-3);
-  renderEvent(event);
+  renderEvent(event, entryHazard);
 }
 
 function pickEvent() {
@@ -983,11 +1032,11 @@ function pickEvent() {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function renderEvent(event) {
+function renderEvent(event, entryHazard = '') {
   $('sceneIcon').textContent = event.icon;
   $('sceneKicker').textContent = event.kicker;
   $('sceneTitle').textContent = event.title;
-  $('sceneText').textContent = event.text;
+  $('sceneText').textContent = entryHazard ? `${entryHazard}\n\n${event.text}` : event.text;
   const area = $('choiceArea');
   area.innerHTML = '';
   event.choices.forEach(choice => {
