@@ -9,6 +9,18 @@ const OPENSEA_AUTH_URL = 'https://api.opensea.io/api/v2/auth/keys';
 const OPENSEA_ACCOUNT_NFTS_URL = 'https://api.opensea.io/api/v2/chain/{chain}/account/{address}/nfts';
 const NEMO_SHARED_CONTRACT = '0x2953399124f0cbb46d2cbacd8a89cf0599974963';
 const POLYGON_CHAIN_ID = '0x89';
+const METAMASK_CONNECT_ESM = 'https://esm.sh/@metamask/connect-evm@2.1.1?bundle&target=es2022';
+const WALLET_SESSION_KEY = 'nemoRogueWalletConnectedV1';
+const SUPPORTED_NETWORKS = {
+  '0x1': 'https://cloudflare-eth.com',
+  '0x89': 'https://polygon-rpc.com',
+};
+
+let walletClient = null;
+let walletProvider = null;
+let walletMode = '';
+let walletInitPromise = null;
+let walletEventsBound = false;
 
 const NEMOS = [
   { id: 'sakura', name: 'さくらねも', image: 'assets/sakura-nemo.webp', desc: 'おだやかで安定感のあるバランス型。休憩や回復が少し得意。', perk: 'balance', badge: '回復 +1 / げんき 11' },
@@ -34,14 +46,40 @@ const LOOT = [
   { id: 'key', name: '小さな鍵', icon: '🗝️', rarity: 2, desc: '何の鍵かはまだわからない。' },
   { id: 'bell', name: '錆びた鈴', icon: '🔔', rarity: 2, desc: '振ると、とても小さな音がする。' },
   { id: 'gold-bun', name: '黄金の肉まん', icon: '🥟', rarity: 3, desc: '食べていいのか飾るべきなのか、永遠の難題。' },
-  { id: 'crest', name: '王家の紋章片', icon: '👑', rarity: 3, desc: '古い紋章の一部。どこの王家なのだろう。' },
-  { id: 'manuscript', name: '読めない古文書', icon: '📜', rarity: 3, desc: '「記録者」という文字だけが読める。' },
-  { id: 'moon-key', name: '月色の鍵', icon: '🌙', rarity: 3, desc: '月明かりの下でだけ輪郭がはっきりする。' },
-  { id: 'memory-glass', name: '記憶の硝子', icon: '💠', rarity: 3, desc: '覗くと、自分ではない誰かの景色が一瞬見える。' },
-  { id: 'record-key', name: '記録者の鍵', icon: '🗝️', rarity: 4, holderOnly: true, desc: '普通の扉には合わない。何かを「開く」ための鍵らしい。' },
-  { id: 'royal-thread', name: '王家の糸飾り', icon: '🎗️', rarity: 4, holderOnly: true, desc: '色褪せているのに、青と桃色だけが不思議と残っている。' },
-  { id: 'star-seal', name: '星待ちの封蝋', icon: '✉️', rarity: 4, holderOnly: true, desc: '封は切られている。誰かが一度、ここに辿り着いた。' },
+
+  // 星待館へつながる、まだ説明されない拾いもの。
+  { id: 'inn-tag', name: '古びた旅館札', icon: '🏷️', rarity: 2, lore: 'inn', loreOnly: true, desc: '文字はかすれている。裏に小さく「星待」とだけ残っている。' },
+  { id: 'wet-photo', name: '濡れた写真の切れ端', icon: '📷', rarity: 2, lore: 'inn', loreOnly: true, desc: '知らない建物と、ねもによく似た小さな影が写っている。' },
+  { id: 'guestbook-fragment', name: '古い宿帳の紙片', icon: '📖', rarity: 2, lore: 'inn', loreOnly: true, desc: '宿泊客の名前が並ぶ中、一か所だけ黒く塗りつぶされている。' },
+  { id: 'oldhall-sign', name: '旧館の案内札', icon: '🚧', rarity: 2, lore: 'inn', loreOnly: true, desc: '「この先 立入禁止」。ずいぶん昔に外されたようだ。' },
+  { id: 'kurose-tag', name: '「黒瀬」と書かれた名札', icon: '📛', rarity: 3, lore: 'inn', loreOnly: true, desc: '名字だけが残っている。誰のものだったのだろう。' },
+  { id: 'torn-letter', name: '宛名のない手紙', icon: '✉️', rarity: 3, lore: 'inn', loreOnly: true, desc: '「継いでほしかったわけじゃない」――その先は破れている。' },
+  { id: 'clock-0451', name: '午前4時51分で止まった時計', icon: '⏱️', rarity: 3, lore: 'inn', loreOnly: true, desc: '壊れている。針は何度動かしても、なぜか4時51分に戻ってしまう。' },
+  { id: 'naoto-note', name: '泥のついた紙片', icon: '📝', rarity: 3, lore: 'inn', loreOnly: true, desc: '泥でほとんど読めない。「直人へ」とだけ残っている。' },
+
+  // 王家へつながる断片。ねも自身も意味を知らない。
+  { id: 'crest', name: '王家の紋章片', icon: '👑', rarity: 3, lore: 'royal', loreOnly: true, desc: '古い紋章の一部。ねもは知らないはずなのに、しばらく目を離さなかった。' },
+  { id: 'manuscript', name: '読めない古文書', icon: '📜', rarity: 3, lore: 'royal', loreOnly: true, desc: 'ほとんど読めない。「記録者」という文字だけが妙にはっきり見える。' },
+  { id: 'moon-key', name: '月色の鍵', icon: '🌙', rarity: 3, lore: 'royal', loreOnly: true, desc: '月明かりの下でだけ輪郭がはっきりする。対応する鍵穴はまだ見つからない。' },
+  { id: 'memory-glass', name: '記憶の硝子', icon: '💠', rarity: 3, lore: 'royal', loreOnly: true, desc: '覗くと、自分ではない誰かの景色が一瞬だけ見える。' },
+  { id: 'burnt-map', name: '焼け焦げた地図', icon: '🗺️', rarity: 3, lore: 'royal', loreOnly: true, desc: '今は存在しない土地が描かれている。中央には、王城らしき印。' },
+  { id: 'crown-ornament', name: '小さな冠の飾り', icon: '♛', rarity: 3, lore: 'royal', loreOnly: true, desc: 'ねもの頭には少し大きい。誰かがとても大切に保管していたようだ。' },
+  { id: 'unreadable-diary', name: '読めない日記', icon: '📕', rarity: 3, lore: 'royal', loreOnly: true, desc: '文字は読めない。でも「ねも」という名前だけ、なぜか読める。' },
+  { id: 'portrait-fragment', name: '古い肖像画の切れ端', icon: '🖼️', rarity: 3, lore: 'royal', loreOnly: true, desc: '顔の部分だけ破れている。衣装は、ねもが着るには少し立派すぎる。' },
+
+  // Holder深層。記録者側から見た断片が混じり始める。
+  { id: 'record-key', name: '記録者の鍵', icon: '🗝️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '普通の扉には合わない。裏面に「第七記録」と刻まれている。' },
+  { id: 'royal-thread', name: '王家の糸飾り', icon: '🎗️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '色褪せているのに、青と桃色だけが不思議と残っている。' },
+  { id: 'star-seal', name: '星待ちの封蝋', icon: '✉️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '封は切られている。誰かが一度、ここに辿り着いた。' },
+  { id: 'recorder-note', name: '記録者のメモ', icon: '🖋️', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '「今日も、彼女は何も知らず笑っていた。――それでいい。」' },
+  { id: 'pocket-watch', name: '壊れた懐中時計', icon: '⌚', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '裏蓋に「王女が目覚めるまで」と刻まれている。時計は動かない。' },
+  { id: 'sealed-box', name: '封印された小箱', icon: '🎁', rarity: 4, holderOnly: true, lore: 'recorder', loreOnly: true, desc: '開かない。けれど近づけると、ねもの耳がほんの少し動く。' },
 ];
+
+const INN_LORE_IDS = LOOT.filter(x => x.lore === 'inn').map(x => x.id);
+const ROYAL_LORE_IDS = LOOT.filter(x => x.lore === 'royal').map(x => x.id);
+const RECORDER_LORE_IDS = LOOT.filter(x => x.lore === 'recorder').map(x => x.id);
+
 
 const TITLES = [
   { id: 'first-step', name: 'はじめの一歩', desc: 'はじめて冒険から帰ってきた。', test: s => s.runs >= 1 },
@@ -49,7 +87,10 @@ const TITLES = [
   { id: 'deep', name: '奥まで行ったねも', desc: '8部屋を踏破した。', test: s => s.clears >= 1 },
   { id: 'collector', name: '拾いもの係', desc: 'おみやげを6種類見つけた。', test: s => s.discovered >= 6 },
   { id: 'archivist', name: '小さな記録者', desc: '冒険を10回記録した。', test: s => s.runs >= 10 },
-  { id: 'mystery', name: '秘密に触れたねも', desc: '王家か記録者に関わる品を持ち帰った。', test: s => s.hasLoreLoot },
+  { id: 'mystery', name: '秘密に触れたねも', desc: '説明のつかない古い品を持ち帰った。', test: s => s.hasLoreLoot },
+  { id: 'star-inn-fragments', name: '星待ちの忘れもの', desc: '「星待」につながる品を3種類見つけた。', test: s => s.innLore >= 3 },
+  { id: 'unknown-crest', name: '知らないはずの紋章', desc: '王家に関わる品を3種類見つけた。', test: s => s.royalLore >= 3 },
+  { id: 'watched-record', name: '見守られていた記録', desc: '記録者に関わる品を2種類見つけた。', test: s => s.recorderLore >= 2 },
   { id: 'holder-step', name: 'ねもと一緒に', desc: '自分のNFTねもで冒険した。', test: s => s.holderRuns >= 1 },
   { id: 'beyond-eight', name: '境界の向こう', desc: 'NFTねもでROOM 12まで到達した。', test: s => s.deep12 >= 1 },
   { id: 'underground-archive', name: '記録者の客人', desc: '記録者の地下回廊を踏破した。', test: s => s.archiveClears >= 1 },
@@ -67,30 +108,46 @@ const DUNGEON_EVENTS = {
     { type: 'forest-stream', icon: '💧', kicker: '小川', title: 'きれいな小川に出た', text: '水面に何か青いものが見える。石かもしれない。魚かもしれない。', choices: [{ label: '手を入れて探す', effect: 'forestFind' }, { label: '水だけ飲んで進む', effect: 'smallHeal' }] },
     { type: 'forest-acorns', icon: '🌰', kicker: 'どんぐり', title: 'どんぐりが大量に落ちている', text: '拾う必要はない。でもねもは少しうれしそう。', choices: [{ label: 'いちばん丸いのを拾う', effect: 'acorn' }, { label: '写真だけ撮る', effect: 'forestPhoto' }] },
     { type: 'forest-hole', icon: '🕳️', kicker: '寄り道', title: '木の根元に小さな穴がある', text: 'ねもなら入れそう。たぶん。ぎりぎり。', choices: [{ label: 'のぞくだけ', effect: 'safeLoot' }, { label: 'ちょっと入ってみる', effect: 'riskLoot' }] },
+    { type: 'forest-luggage-tag', icon: '🏷️', kicker: '落としもの', title: '苔の下から古い木札が出てきた', text: '旅館で使われていた札みたいだ。裏側には、消えかけた二文字がある。', choices: [{ label: '泥を払って持ち帰る', effect: 'item:inn-tag' }, { label: 'その場に戻しておく', effect: 'guard' }] },
   ],
   warehouse: [
     { type: 'warehouse-boxes', icon: '📦', kicker: '山積み', title: '古い箱が天井近くまで積まれている', text: '一番上の箱だけ、新しい紐で結ばれている。', choices: [{ label: '下の箱から確認する', effect: 'safeLoot' }, { label: '一番上が気になる', effect: 'riskLoot' }] },
     { type: 'warehouse-clock', icon: '🕰️', kicker: '変な時計', title: '止まった時計が突然ひとつ鳴った', text: '時刻は23:17。ねもは時計と目を合わせないことにした。', choices: [{ label: '裏側を調べる', effect: 'mystery' }, { label: '何も見なかったことにする', effect: 'guard' }] },
     { type: 'warehouse-dust', icon: '🫧', kicker: 'ほこり', title: 'ほこりの中に足跡がある', text: '新しい。しかも、ねもの足跡ではない。', choices: [{ label: '足跡をたどる', effect: 'trail' }, { label: '自分の道を進む', effect: 'guard' }] },
+    { type: 'warehouse-ledger', icon: '📖', kicker: '古い帳面', title: '宿帳らしい帳面が箱の底にある', text: '名前が何列も並んでいる。でも、一か所だけ黒く塗りつぶされている。', choices: [{ label: '外れかけたページを拾う', effect: 'item:guestbook-fragment' }, { label: '黒い部分を光に透かす', effect: 'mystery' }] },
+    { type: 'warehouse-oldhall-sign', icon: '🚧', kicker: '古い案内札', title: '壁の裏から「旧館」の文字が出てきた', text: 'その下には「立入禁止」。ずいぶん前に外された札らしい。', choices: [{ label: '札を持ち帰る', effect: 'item:oldhall-sign' }, { label: '裏側だけ確認する', effect: 'innLore' }] },
+    { type: 'warehouse-clock-0451', icon: '⏱️', kicker: '小さな時計', title: '引き出しの中に旅行時計がある', text: '針は4時51分で止まっている。ねもが触ると一度だけ秒針が動いた。', choices: [{ label: '持ち帰る', effect: 'item:clock-0451' }, { label: '時刻だけ記録する', effect: 'mystery' }] },
+    { type: 'warehouse-name-tag', icon: '📛', kicker: '名札', title: '古い制服のポケットに名札が残っている', text: '読める文字は名字だけ。「黒瀬」。', choices: [{ label: '名札を拾う', effect: 'item:kurose-tag' }, { label: '服はそのままにする', effect: 'guard' }] },
   ],
   onsen: [
     { type: 'onsen-steam', icon: '♨️', kicker: '湯気', title: '壁の隙間から温かい湯気が出ている', text: '少し休めそう。でも奥には石造りの通路が続いている。', choices: [{ label: '足湯する', effect: 'bigHeal' }, { label: '奥の通路へ', effect: 'loreRisk' }] },
-    { type: 'onsen-wall', icon: '👑', kicker: '古い壁画', title: '壁に見覚えのない紋章が描かれている', text: '長い耳の人物と、小さな王冠。その横に文字が刻まれている。', choices: [{ label: '文字を写しておく', effect: 'loreLoot' }, { label: '触らず観察する', effect: 'mystery' }] },
+    { type: 'onsen-wall', icon: '👑', kicker: '古い壁画', title: '壁に見覚えのない紋章が描かれている', text: '長い耳の人物と、小さな王冠。その横に文字が刻まれている。', choices: [{ label: '文字を写しておく', effect: 'royalLore' }, { label: '触らず観察する', effect: 'mystery' }] },
     { type: 'onsen-dark', icon: '🌘', kicker: '暗闇', title: '先がまったく見えない', text: '奥から、ぽたん、ぽたん、と水の音だけが聞こえる。', choices: [{ label: '壁づたいに進む', effect: 'riskSmall' }, { label: '今日はここまでにする', effect: 'return' }] },
     { type: 'onsen-paper', icon: '📜', kicker: '紙片', title: '濡れていない紙片が落ちている', text: 'こんな湿った洞窟なのに、紙は不思議なくらい乾いている。', choices: [{ label: '拾って持ち帰る', effect: 'loreLoot' }, { label: 'その場で読む', effect: 'mystery' }] },
+    { type: 'onsen-photo', icon: '📷', kicker: '写真', title: '岩の隙間に写真の切れ端が挟まっている', text: '建物の前に、小さな影。輪郭だけなら、ねもに少し似ている。', choices: [{ label: '写真を持ち帰る', effect: 'item:wet-photo' }, { label: '裏面を見る', effect: 'innLore' }] },
+    { type: 'onsen-letter', icon: '✉️', kicker: '破れた手紙', title: '水に濡れていない手紙が落ちている', text: '「継いでほしかったわけじゃない」。その一文だけが残っている。', choices: [{ label: 'そっとしまう', effect: 'item:torn-letter' }, { label: '続きを探す', effect: 'innLore' }] },
+    { type: 'onsen-naoto', icon: '📝', kicker: '泥の跡', title: '通路の端に泥のついた紙片がある', text: 'ほとんど読めない。端に「直人へ」とだけ書かれている。', choices: [{ label: '拾っておく', effect: 'item:naoto-note' }, { label: '泥の足跡を調べる', effect: 'trail' }] },
+    { type: 'onsen-map', icon: '🗺️', kicker: '地図', title: '壁の奥から焦げた地図が出てきた', text: '見たことのない土地。中央には、大きな建物の印がある。', choices: [{ label: '地図を持ち帰る', effect: 'item:burnt-map' }, { label: '中央の印だけ写す', effect: 'royalLore' }] },
   ],
   archive: [
     { type: 'archive-shelves', icon: '📚', kicker: '地下書庫', title: '壁一面に古い記録が並んでいる', text: '名前のない背表紙ばかり。そのうち一冊だけ、ねもの足元で少し開いている。', choices: [{ label: '開いてみる', effect: 'holderLoot' }, { label: 'まず棚番号を写す', effect: 'deepLore' }] },
-    { type: 'archive-door', icon: '🚪', kicker: '封じた扉', title: '小さな王冠の刻印がある扉', text: '鍵穴はある。でも鍵の形が見たことのないものだ。', choices: [{ label: '鍵穴を調べる', effect: 'holderLoot' }, { label: '扉の文字を読む', effect: 'mystery' }] },
+    { type: 'archive-door', icon: '🚪', kicker: '封じた扉', title: '小さな王冠の刻印がある扉', text: '鍵穴はある。でも鍵の形が見たことのないものだ。', choices: [{ label: '鍵穴を調べる', effect: 'holderLoot' }, { label: '扉の文字を読む', effect: 'royalLore' }] },
     { type: 'archive-chair', icon: '🪑', kicker: '休憩室', title: '一脚だけ椅子が残っている', text: '埃が積もっていない。さっきまで誰かが座っていたみたいだ。', choices: [{ label: '少し休む', effect: 'deepRest' }, { label: '周囲を探す', effect: 'holderLoot' }] },
-    { type: 'archive-thread', icon: '🎗️', kicker: '細い糸', title: '床に桃色と青の糸が落ちている', text: 'ねもはなぜか、それを見てしばらく動かなかった。', choices: [{ label: '大切に持ち帰る', effect: 'holderLoot' }, { label: '場所だけ覚えておく', effect: 'deepLore' }] },
+    { type: 'archive-thread', icon: '🎗️', kicker: '細い糸', title: '床に桃色と青の糸が落ちている', text: 'ねもはなぜか、それを見てしばらく動かなかった。', choices: [{ label: '大切に持ち帰る', effect: 'item:royal-thread' }, { label: '場所だけ覚えておく', effect: 'deepLore' }] },
+    { type: 'archive-portrait', icon: '🖼️', kicker: '肖像画', title: '布をかぶった古い額縁がある', text: '顔の部分だけが破れている。でも衣装には小さな王冠の意匠がある。', choices: [{ label: '切れ端を拾う', effect: 'item:portrait-fragment' }, { label: '額縁の裏を調べる', effect: 'recorderLore' }] },
+    { type: 'archive-diary', icon: '📕', kicker: '読めない本', title: '知らない文字で書かれた日記がある', text: '一行も読めないはずなのに、ねもは一か所だけ指を止めた。', choices: [{ label: 'その本を持ち帰る', effect: 'item:unreadable-diary' }, { label: '指を止めた行だけ写す', effect: 'royalLore' }] },
+    { type: 'archive-note', icon: '🖋️', kicker: '走り書き', title: '机の引き出しに一枚だけメモがある', text: '「今日も、彼女は何も知らず笑っていた。」その下は墨で消されている。', choices: [{ label: 'メモを持ち帰る', effect: 'item:recorder-note' }, { label: '消された部分を見る', effect: 'recorderLore' }] },
+    { type: 'archive-box', icon: '🎁', kicker: '封印', title: '棚の奥に小さな箱がある', text: '鍵も継ぎ目もない。でも、ねもが近づくと耳がほんの少し動いた。', choices: [{ label: '箱を持ち帰る', effect: 'item:sealed-box' }, { label: '箱の周りを調べる', effect: 'holderLoot' }] },
   ],
 };
 
 const DEEP_EVENTS = [
   { type: 'deep-gate', icon: '🌌', kicker: '深層', title: '8つ目の部屋の先に、まだ道があった', text: 'ゲストねもには見えなかった扉。自分のねもは迷わずその先を見る。', choices: [{ label: 'さらに奥へ', effect: 'deepLore' }, { label: '扉のそばを探す', effect: 'holderLoot' }] },
-  { type: 'deep-star', icon: '✦', kicker: '静かな部屋', title: '天井に星の形の穴がある', text: '差し込んだ光が床の古い印だけを照らしている。', choices: [{ label: '印を写す', effect: 'holderLoot' }, { label: '光の下で休む', effect: 'deepRest' }] },
-  { type: 'deep-whisper', icon: '🕯️', kicker: '深層', title: '誰もいないのに紙をめくる音がする', text: '怖くはない。ただ、ここに来るのを待たれていた気がする。', choices: [{ label: '音の方へ行く', effect: 'holderLoot' }, { label: '足跡を確認する', effect: 'deepLore' }] },
+  { type: 'deep-star', icon: '✦', kicker: '静かな部屋', title: '天井に星の形の穴がある', text: '差し込んだ光が床の古い印だけを照らしている。', choices: [{ label: '印を写す', effect: 'royalLore' }, { label: '光の下で休む', effect: 'deepRest' }] },
+  { type: 'deep-whisper', icon: '🕯️', kicker: '深層', title: '誰もいないのに紙をめくる音がする', text: '怖くはない。ただ、ここに来るのを待たれていた気がする。', choices: [{ label: '音の方へ行く', effect: 'recorderLore' }, { label: '足跡を確認する', effect: 'deepLore' }] },
+  { type: 'deep-watch', icon: '⌚', kicker: '深層の机', title: '壊れた懐中時計が一つだけ置かれている', text: '裏蓋には短い文字。ねもは読まずに、しばらく時計を見ている。', choices: [{ label: '時計を持ち帰る', effect: 'item:pocket-watch' }, { label: '裏蓋の文字だけ記録する', effect: 'recorderLore' }] },
+  { type: 'deep-crown', icon: '♛', kicker: '小さな飾り', title: '布の上に小さな冠の飾りが置かれている', text: '誰かが「帰ってくるまで」ここに置いていたように見える。', choices: [{ label: 'そっと持ち帰る', effect: 'item:crown-ornament' }, { label: '触れずに観察する', effect: 'royalLore' }] },
+  { type: 'deep-record', icon: '📜', kicker: '第七記録', title: '棚の一角だけ番号の振り方が違う', text: '「第七記録」。その文字を見たとき、ねもが一度だけ後ろを振り返った。', choices: [{ label: '記録を調べる', effect: 'recorderLore' }, { label: '鍵穴を探す', effect: 'item:record-key' }] },
 ];
 
 const TRAITS = ['洞窟慣れ','石ころ収集家','びっくり耐性','慎重派','寄り道名人','肉まん鑑定士','箱を見ると開けたい','温泉好き','帰る判断が早い','暗いところ平気','足跡が気になる','拾いもの上手','深層を知っている'];
@@ -140,33 +197,83 @@ function bindStaticEvents() {
   $('disconnectWalletBtn').addEventListener('click', disconnectGameWallet);
   $('refreshNftsBtn').addEventListener('click', refreshHolderNfts);
   $('manualVerifyBtn').addEventListener('click', verifyManualToken);
-  $('openMetaMaskBtn').addEventListener('click', openInMetaMask);
   document.querySelectorAll('.archive-tab').forEach(btn => btn.addEventListener('click', () => switchArchiveTab(btn.dataset.tab)));
 }
 
 function configureWalletAvailability() {
-  if (window.ethereum?.request) {
-    $('openMetaMaskBtn').classList.add('hidden');
-    if (window.ethereum.on) {
-      window.ethereum.on('accountsChanged', accounts => {
-        if (!accounts?.length) disconnectGameWallet();
-        else handleWalletAccount(accounts[0], state.playMode === 'holder');
+  // v0.5: Safariなど通常のモバイルブラウザからMetaMask Connectを使う。
+  // window.ethereum が無くても接続ボタンは有効のままにする。
+  $('connectWalletBtn').disabled = false;
+  $('connectWalletBtn').textContent = 'MetaMaskを接続';
+  $('openMetaMaskBtn')?.classList.add('hidden');
+  $('nftScanStatus').textContent = 'Safariのまま接続できます。接続時だけMetaMaskアプリが開き、承認後はこのゲームへ戻れます。';
+}
+
+async function initWalletClient() {
+  if (walletClient || walletProvider) return { client: walletClient, provider: walletProvider, mode: walletMode };
+  if (walletInitPromise) return walletInitPromise;
+
+  walletInitPromise = (async () => {
+    try {
+      const mod = await import(METAMASK_CONNECT_ESM);
+      if (typeof mod.createEVMClient !== 'function') throw new Error('MetaMask Connectを読み込めませんでした。');
+      walletClient = await mod.createEVMClient({
+        dapp: {
+          name: 'ねもの冒険記録',
+          url: `${location.origin}${location.pathname}`,
+        },
+        api: { supportedNetworks: SUPPORTED_NETWORKS },
       });
+      walletProvider = walletClient.getProvider();
+      walletMode = 'metamask-connect';
+      bindWalletEvents(walletProvider);
+      return { client: walletClient, provider: walletProvider, mode: walletMode };
+    } catch (sdkError) {
+      // デスクトップ等で拡張機能が注入されている場合の保険。
+      if (window.ethereum?.request) {
+        walletProvider = window.ethereum;
+        walletMode = 'injected-fallback';
+        bindWalletEvents(walletProvider);
+        return { client: null, provider: walletProvider, mode: walletMode };
+      }
+      throw sdkError;
+    } finally {
+      walletInitPromise = null;
     }
-  } else {
-    $('connectWalletBtn').disabled = true;
-    $('connectWalletBtn').textContent = 'ブラウザウォレットが見つかりません';
-    $('openMetaMaskBtn').classList.remove('hidden');
-    $('nftScanStatus').textContent = 'スマホはMetaMaskアプリ内ブラウザで開くと接続できます。';
-  }
+  })();
+
+  return walletInitPromise;
+}
+
+function bindWalletEvents(provider) {
+  if (!provider?.on || walletEventsBound) return;
+  walletEventsBound = true;
+  provider.on('accountsChanged', accounts => {
+    if (!accounts?.length) clearWalletUi();
+    else handleWalletAccount(accounts[0], true);
+  });
+  provider.on('chainChanged', () => {
+    if (state.walletAddress) setScanStatus('ネットワークが変更されました。Nemo NFTを再確認できます。');
+  });
 }
 
 async function restoreAuthorizedWallet() {
-  if (!window.ethereum?.request) return;
+  // 明示的に一度接続した端末だけ、既存セッションを静かに復元する。
+  if (!localStorage.getItem(WALLET_SESSION_KEY)) return;
   try {
-    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-    if (accounts?.[0]) handleWalletAccount(accounts[0], false);
-  } catch {}
+    const { client, provider } = await initWalletClient();
+    const savedAccount = client?.getAccount?.();
+    if (savedAccount) {
+      handleWalletAccount(savedAccount, false);
+      return;
+    }
+    if (provider?.request) {
+      const accounts = await provider.request({ method: 'eth_accounts' });
+      if (accounts?.[0]) handleWalletAccount(accounts[0], false);
+    }
+  } catch {
+    // 復元に失敗してもゲストプレイには影響させない。
+  }
 }
 
 function renderSetup() {
@@ -282,19 +389,38 @@ function updateSelectionSummary() {
 }
 
 async function connectWallet() {
-  if (!window.ethereum?.request) return;
-  setScanStatus('ウォレットの接続を確認しています…', 'loading');
+  const button = $('connectWalletBtn');
+  button.disabled = true;
+  button.textContent = 'MetaMaskを開いています…';
+  setScanStatus('MetaMaskで接続を承認してください。承認後、このブラウザに戻ります。', 'loading');
+
   try {
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const { client, provider } = await initWalletClient();
+    let accounts = [];
+
+    if (client) {
+      const result = await client.connect({ chainIds: [POLYGON_CHAIN_ID] });
+      accounts = result?.accounts || [];
+    } else if (provider?.request) {
+      accounts = await provider.request({ method: 'eth_requestAccounts' });
+    }
+
     if (!accounts?.[0]) throw new Error('アカウントを取得できませんでした。');
+    localStorage.setItem(WALLET_SESSION_KEY, accounts[0]);
     handleWalletAccount(accounts[0], true);
   } catch (err) {
     setScanStatus(walletErrorText(err), 'error');
+  } finally {
+    if (!state.walletAddress) {
+      button.disabled = false;
+      button.textContent = 'MetaMaskを接続';
+    }
   }
 }
 
 function handleWalletAccount(address, scan = true) {
   state.walletAddress = address;
+  localStorage.setItem(WALLET_SESSION_KEY, address);
   $('walletStatusChip').textContent = '接続済み';
   $('walletStatusChip').classList.add('connected');
   $('walletAddressText').textContent = shortAddress(address);
@@ -308,7 +434,15 @@ function handleWalletAccount(address, scan = true) {
   if (scan) refreshHolderNfts();
 }
 
-function disconnectGameWallet() {
+async function disconnectGameWallet() {
+  try {
+    if (walletClient?.disconnect) await walletClient.disconnect();
+  } catch {}
+  localStorage.removeItem(WALLET_SESSION_KEY);
+  clearWalletUi();
+}
+
+function clearWalletUi() {
   state.walletAddress = '';
   state.holderNfts = [];
   state.selectedNemo = null;
@@ -317,11 +451,13 @@ function disconnectGameWallet() {
   $('walletStatusChip').classList.remove('connected');
   $('walletConnectedBox').classList.add('hidden');
   $('connectWalletBtn').classList.remove('hidden');
+  $('connectWalletBtn').disabled = false;
+  $('connectWalletBtn').textContent = 'MetaMaskを接続';
   $('disconnectWalletBtn').classList.add('hidden');
   $('nftModeStatus').textContent = 'HOLDER';
   $('manualVerifyDetails').classList.add('hidden');
   $('manualVerifyStatus').textContent = '';
-  setScanStatus('ウォレットを接続すると、NemoCollection2023を自動で探します。');
+  setScanStatus('Safariのまま接続できます。接続時だけMetaMaskアプリが開きます。');
   renderHolderNemos();
   renderDungeons();
   updateSelectionSummary();
@@ -451,33 +587,57 @@ function parseTokenInput(value) {
   try { return BigInt(candidate); } catch { return null; }
 }
 
+async function getWalletProvider() {
+  if (walletProvider?.request) return walletProvider;
+  const { provider } = await initWalletClient();
+  if (!provider?.request) throw new Error('ウォレットに接続できませんでした。');
+  return provider;
+}
+
 async function ensurePolygonNetwork() {
-  if (!window.ethereum?.request) throw new Error('ブラウザウォレットが見つかりません。');
-  const current = await window.ethereum.request({ method: 'eth_chainId' });
+  const provider = await getWalletProvider();
+  const current = await provider.request({ method: 'eth_chainId' });
   if (String(current).toLowerCase() === POLYGON_CHAIN_ID) return;
+
+  if (walletClient?.switchChain) {
+    await walletClient.switchChain({
+      chainId: POLYGON_CHAIN_ID,
+      chainConfiguration: {
+        chainId: POLYGON_CHAIN_ID,
+        chainName: 'Polygon',
+        nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
+        rpcUrls: [SUPPORTED_NETWORKS[POLYGON_CHAIN_ID]],
+        blockExplorerUrls: ['https://polygonscan.com'],
+      },
+    });
+    return;
+  }
+
   try {
-    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: POLYGON_CHAIN_ID }] });
+    await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: POLYGON_CHAIN_ID }] });
   } catch (err) {
     if (err?.code !== 4902) throw err;
-    await window.ethereum.request({
+    await provider.request({
       method: 'wallet_addEthereumChain',
-      params: [{ chainId: POLYGON_CHAIN_ID, chainName: 'Polygon', nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 }, rpcUrls: ['https://polygon-rpc.com'], blockExplorerUrls: ['https://polygonscan.com'] }]
+      params: [{ chainId: POLYGON_CHAIN_ID, chainName: 'Polygon', nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 }, rpcUrls: [SUPPORTED_NETWORKS[POLYGON_CHAIN_ID]], blockExplorerUrls: ['https://polygonscan.com'] }],
     });
   }
 }
 
 async function erc1155BalanceOf(address, tokenId) {
+  const provider = await getWalletProvider();
   const selector = '00fdd58e';
   const addressWord = address.toLowerCase().replace(/^0x/, '').padStart(64, '0');
   const tokenWord = tokenId.toString(16).padStart(64, '0');
-  const result = await window.ethereum.request({ method: 'eth_call', params: [{ to: NEMO_SHARED_CONTRACT, data: `0x${selector}${addressWord}${tokenWord}` }, 'latest'] });
+  const result = await provider.request({ method: 'eth_call', params: [{ to: NEMO_SHARED_CONTRACT, data: `0x${selector}${addressWord}${tokenWord}` }, 'latest'] });
   return BigInt(result || '0x0');
 }
 
 async function getTokenMetadata(tokenId) {
+  const provider = await getWalletProvider();
   const selector = '0e89341c';
   const tokenWord = tokenId.toString(16).padStart(64, '0');
-  const result = await window.ethereum.request({ method: 'eth_call', params: [{ to: NEMO_SHARED_CONTRACT, data: `0x${selector}${tokenWord}` }, 'latest'] });
+  const result = await provider.request({ method: 'eth_call', params: [{ to: NEMO_SHARED_CONTRACT, data: `0x${selector}${tokenWord}` }, 'latest'] });
   const uri = decodeAbiString(result).replace(/\{id\}/gi, tokenWord.toLowerCase());
   return fetchJsonUri(uri);
 }
@@ -514,11 +674,6 @@ function resolveAssetUrl(uri) {
   return value;
 }
 
-function openInMetaMask() {
-  const dapp = `${location.host}${location.pathname}${location.search}`;
-  location.href = `https://metamask.app.link/dapp/${dapp}`;
-}
-
 function setScanStatus(text, type = '') {
   const el = $('nftScanStatus');
   el.textContent = text;
@@ -526,7 +681,13 @@ function setScanStatus(text, type = '') {
 }
 
 function walletErrorText(err) {
-  if (err?.code === 4001) return 'ウォレット側でキャンセルされました。';
+  const code = err?.rpcCode ?? err?.code;
+  if (code === 4001) return 'ウォレット側でキャンセルされました。';
+  if (code === -32002) return 'MetaMaskで接続確認が開いています。ウォレット側を確認してください。';
+  const text = String(err?.message || err || '接続できませんでした。');
+  if (/Failed to fetch|dynamically imported module|Importing a module script failed|Load failed/i.test(text)) {
+    return 'MetaMask接続ライブラリを読み込めませんでした。通信状態を確認して、もう一度お試しください。';
+  }
   return friendlyNetworkError(err);
 }
 function friendlyNetworkError(err) {
@@ -592,7 +753,9 @@ function pickEvent() {
   if (state.playMode === 'holder' && state.room >= 9) pool = [...DEEP_EVENTS, ...DEEP_EVENTS, ...(DUNGEON_EVENTS[state.selectedDungeon.id] || [])];
   const fresh = pool.filter(event => !state.eventMemory.includes(event.type));
   if (fresh.length >= 3) pool = fresh;
-  if (state.room >= 6 && state.selectedDungeon.id === 'onsen') pool = [...pool, ...DUNGEON_EVENTS.onsen.filter(e => ['onsen-wall', 'onsen-paper'].includes(e.type))];
+  if (state.room >= 4 && state.selectedDungeon.id === 'warehouse') pool = [...pool, ...DUNGEON_EVENTS.warehouse.filter(e => ['warehouse-ledger', 'warehouse-oldhall-sign', 'warehouse-clock-0451', 'warehouse-name-tag'].includes(e.type))];
+  if (state.room >= 6 && state.selectedDungeon.id === 'onsen') pool = [...pool, ...DUNGEON_EVENTS.onsen.filter(e => ['onsen-wall', 'onsen-paper', 'onsen-letter', 'onsen-naoto', 'onsen-map'].includes(e.type))];
+  if (state.playMode === 'holder' && state.room >= 10) pool = [...pool, ...DEEP_EVENTS.filter(e => ['deep-watch', 'deep-crown', 'deep-record'].includes(e.type))];
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -616,7 +779,13 @@ function renderEvent(event) {
 
 function resolveChoice(effect) {
   let message = '';
-  switch (effect) {
+  if (typeof effect === 'string' && effect.startsWith('item:')) {
+    const itemId = effect.slice(5);
+    message = gainSpecificLoot([itemId]);
+    const found = LOOT.find(x => x.id === itemId);
+    if (found?.lore === 'inn') maybeTrait('足跡が気になる', .18);
+    if (found?.lore === 'royal' || found?.lore === 'recorder') maybeTrait('深層を知っている', .22);
+  } else switch (effect) {
     case 'loot': message = gainLoot(false); break;
     case 'safeLoot': if (Math.random() < .12) takeDamage(1); message = gainLoot(Math.random() < .18); break;
     case 'riskLoot': takeDamage(randomInt(0, 2)); message = gainLoot(Math.random() < .32); maybeTrait('箱を見ると開けたい', .32); break;
@@ -634,10 +803,13 @@ function resolveChoice(effect) {
     case 'acorn': message = gainSpecificLoot(['acorn']); break;
     case 'forestPhoto': message = 'どんぐりの山を記録した。持ち帰らない勇気もある。'; maybeTrait('帰る判断が早い', .08); break;
     case 'trail': if (Math.random() < .55) message = gainLoot(true); else { takeDamage(1); message = '足跡は途中で消えていた。少しぞわっとした。'; } maybeTrait('足跡が気になる', .5); break;
-    case 'loreRisk': takeDamage(randomInt(0, 2)); message = Math.random() < .55 ? gainLoreLoot() : '古い通路は途中で崩れていた。今日はここまで。'; break;
+    case 'loreRisk': takeDamage(randomInt(0, 2)); message = Math.random() < .58 ? gainLoreLoot() : '古い通路は途中で崩れていた。今日はここまで。'; break;
     case 'loreLoot': message = gainLoreLoot(); break;
+    case 'innLore': message = gainLoreByTier('inn'); break;
+    case 'royalLore': message = gainLoreByTier('royal'); maybeTrait('深層を知っている', .16); break;
+    case 'recorderLore': message = state.playMode === 'holder' ? gainLoreByTier('recorder') : gainLoreByTier('royal'); maybeTrait('深層を知っている', .3); break;
     case 'holderLoot': message = gainHolderLoot(); maybeTrait('深層を知っている', .28); break;
-    case 'deepLore': message = Math.random() < .62 ? gainHolderLoot() : gainLoreLoot(); maybeTrait('深層を知っている', .35); break;
+    case 'deepLore': message = Math.random() < .68 ? gainHolderLoot() : gainLoreByTier('royal'); maybeTrait('深層を知っている', .35); break;
     case 'return': finishAdventure('return'); return;
   }
   addLog(message);
@@ -656,43 +828,74 @@ function renderAfterChoice(message) {
   updateHUD();
 }
 function getAfterText() {
+  const last = state.loot[state.loot.length - 1];
+  if (last?.lore && Math.random() < .7) {
+    const loreTexts = [
+      'ねもは拾ったものをもう一度見た。知らないはずなのに、少しだけ懐かしい気がする。',
+      'ねもは何も言わず、その品を大切にしまった。',
+      '説明できないけれど、これは捨ててはいけない気がした。',
+      'ねもの耳が一度だけぴくりと動いた。本人は気づいていない。',
+    ];
+    return loreTexts[Math.floor(Math.random() * loreTexts.length)];
+  }
   const texts = ['ねもは次へ進むか、今日は帰るか考えている。','少しだけ立ち止まって、持ち物を確認した。','奥から何か音がする。でも気のせいかもしれない。','ねもは一度だけ後ろを振り返った。帰り道はちゃんと覚えている。'];
   return texts[Math.floor(Math.random() * texts.length)];
+}
+
+function chooseLootCandidate(candidates) {
+  if (!candidates.length) return null;
+  const inRun = new Set(state.loot.map(x => x.id));
+  const discovered = new Set(getSavedArray(STORAGE.discoveredLoot));
+  const neverSeen = candidates.filter(x => !discovered.has(x.id) && !inRun.has(x.id));
+  const noDuplicate = candidates.filter(x => !inRun.has(x.id));
+  const pool = neverSeen.length && Math.random() < .72 ? neverSeen : noDuplicate.length ? noDuplicate : candidates;
+  return { ...pool[Math.floor(Math.random() * pool.length)] };
 }
 
 function gainLoot(forceRare = false) {
   let candidates;
   const rareBoost = (state.selectedNemo.perk === 'rare' && Math.random() < .3) || (state.playMode === 'holder' && Math.random() < .12);
-  if (forceRare || rareBoost) candidates = LOOT.filter(x => x.rarity >= 2 && !x.holderOnly);
-  else candidates = LOOT.filter(x => x.rarity <= 2 && !x.holderOnly);
-  const item = { ...candidates[Math.floor(Math.random() * candidates.length)] };
+  if (forceRare || rareBoost) candidates = LOOT.filter(x => x.rarity >= 2 && !x.holderOnly && !x.loreOnly);
+  else candidates = LOOT.filter(x => x.rarity <= 2 && !x.holderOnly && !x.loreOnly);
+  const item = chooseLootCandidate(candidates);
+  if (!item) return '何も見つからなかった。';
   state.loot.push(item);
   maybeTrait('拾いもの上手', .16);
   return `${item.icon} ${item.name}を見つけた。`;
 }
 function gainSpecificLoot(ids) {
   const candidates = LOOT.filter(x => ids.includes(x.id));
-  const item = { ...candidates[Math.floor(Math.random() * candidates.length)] };
+  const item = chooseLootCandidate(candidates);
+  if (!item) return 'そこには何も残っていなかった。';
   state.loot.push(item);
   return `${item.icon} ${item.name}を見つけた。`;
 }
-function gainLoreLoot() {
-  const loreIds = ['crest', 'manuscript', 'moon-key', 'memory-glass'];
-  const candidates = LOOT.filter(x => loreIds.includes(x.id));
-  const item = { ...candidates[Math.floor(Math.random() * candidates.length)] };
+function gainLoreByTier(tier) {
+  let candidates = LOOT.filter(x => x.lore === tier && !x.holderOnly);
+  if (tier === 'recorder') candidates = state.playMode === 'holder' ? LOOT.filter(x => x.lore === 'recorder') : LOOT.filter(x => x.lore === 'royal' && !x.holderOnly);
+  const item = chooseLootCandidate(candidates);
+  if (!item) return '古い痕跡はあったが、持ち帰れるものはなかった。';
   state.loot.push(item);
-  return `${item.icon} ${item.name}を見つけた。なんだか普通の拾いものではなさそうだ。`;
+  return `${item.icon} ${item.name}を見つけた。ねもは少しだけ、その場から動かなかった。`;
+}
+function gainLoreLoot() {
+  let tier = 'royal';
+  if (state.selectedDungeon?.id === 'warehouse') tier = 'inn';
+  else if (state.selectedDungeon?.id === 'onsen') tier = Math.random() < .58 ? 'inn' : 'royal';
+  else if (state.selectedDungeon?.id === 'archive') tier = state.playMode === 'holder' && Math.random() < .55 ? 'recorder' : 'royal';
+  return gainLoreByTier(tier);
 }
 function gainHolderLoot() {
   if (state.playMode !== 'holder') return gainLoreLoot();
   const candidates = LOOT.filter(x => x.holderOnly);
-  const item = { ...candidates[Math.floor(Math.random() * candidates.length)] };
+  const item = chooseLootCandidate(candidates);
+  if (!item) return '深層の棚は空だった。誰かが先に持ち出したのかもしれない。';
   state.loot.push(item);
-  return `${item.icon} ${item.name}を見つけた。自分のねもだから辿り着けた場所にあった。`;
+  return `${item.icon} ${item.name}を見つけた。ここまで来たねもにだけ見つけられたものらしい。`;
 }
 function maybeLuckyBonus() {
   if (state.selectedNemo?.perk !== 'lucky' || Math.random() >= .16) return;
-  const candidates = LOOT.filter(x => x.rarity === 1);
+  const candidates = LOOT.filter(x => x.rarity === 1 && !x.loreOnly);
   const item = { ...candidates[Math.floor(Math.random() * candidates.length)] };
   state.loot.push(item);
   addLog(`🍀 幸運のおまけ：${item.icon} ${item.name}も見つけた。`);
@@ -769,7 +972,11 @@ function saveDiscoveredLoot(items) { const discovered = new Set(getSavedArray(ST
 function computeStats() {
   const records = getRecords();
   const discovered = getSavedArray(STORAGE.discoveredLoot);
-  const hasLoreLoot = discovered.some(id => ['crest','manuscript','moon-key','memory-glass','record-key','royal-thread','star-seal'].includes(id));
+  const loreItems = discovered.map(id => LOOT.find(item => item.id === id)).filter(item => item?.lore);
+  const hasLoreLoot = loreItems.length > 0;
+  const innLore = loreItems.filter(item => item.lore === 'inn').length;
+  const royalLore = loreItems.filter(item => item.lore === 'royal').length;
+  const recorderLore = loreItems.filter(item => item.lore === 'recorder').length;
   return {
     runs: records.length,
     clears: records.filter(r => r.reason === 'clear').length,
@@ -777,6 +984,9 @@ function computeStats() {
     deepest: records.reduce((m, r) => Math.max(m, Number(r.rooms) || 0), 0),
     discovered: discovered.length,
     hasLoreLoot,
+    innLore,
+    royalLore,
+    recorderLore,
     holderRuns: records.filter(r => r.playMode === 'holder').length,
     deep12: records.filter(r => r.playMode === 'holder' && Number(r.rooms) >= 12 && r.reason === 'clear').length,
     archiveClears: records.filter(r => r.dungeonId === 'archive' && r.reason === 'clear').length,
