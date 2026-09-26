@@ -1,15 +1,16 @@
-ねも死なないローグライク v0.8
+ねも死なないローグライク v0.9
 
-PC NFT取得安定化アップデート
+Webブラウザで遊べる、ねもちゃんの「死なないローグライク」。
+NFTなしでもゲストねもで遊べます。
+NemoCollection2023ホルダーは、自分のNFTねもで深層12ROOM・Holder限定ルートへ進めます。
 
-- スマホ：従来どおりOpenSea自動取得を優先
-- PC：OpenSea取得が失敗した場合、MetaMask経由でPolygonのERC-1155保有数を直接確認
-- NemoCollection2023だけをNFTメタデータで自動判定
-- 最後の予備としてToken ID手動確認も維持
-- ゲーム内容、深層12ROOM、限定ルート、図鑑、匂わせアイテムはv0.7から維持
+v0.9変更点
+- PCのNFT自動取得を「Nemo Holder API（Cloudflare Worker）」経由に変更
+- GitHub PagesからOpenSea APIを直接呼ぶ依存を減らした
+- スマホで動いていたOpenSea直接取得はフォールバックとして維持
+- Token ID手動確認も維持
+- ゲーム本体、MetaMask Connect、図鑑・冒険記録・深層設定はそのまま
 
-GitHub Pages更新：
-update_only ZIPの index.html / app.js / README.txt をリポジトリ直下へ上書きしてCommitしてください。
-
-安全性：
-ウォレットの公開アドレスとNFT保有情報を読み取るだけです。送金・購入・秘密鍵入力はありません。
+重要：PCで自動取得を使うには、worker/ のCloudflare Workerを1回公開し、
+api-config.js の baseUrl に workers.dev URLを設定してください。
+詳しくは worker/README_DEPLOY.txt を参照してください。

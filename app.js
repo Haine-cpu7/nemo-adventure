@@ -5,6 +5,7 @@ const STORAGE = {
 };
 
 const COLLECTION_SLUG = 'nemocollection2023';
+const NEMO_API_BASE = String(window.NEMO_API_CONFIG?.baseUrl || '').replace(/\/+$/, '');
 const OPENSEA_AUTH_URL = 'https://api.opensea.io/api/v2/auth/keys';
 const OPENSEA_ACCOUNT_NFTS_URL = 'https://api.opensea.io/api/v2/chain/{chain}/account/{address}/nfts';
 const NEMO_SHARED_CONTRACT = '0x2953399124f0cbb46d2cbacd8a89cf0599974963';
@@ -470,38 +471,43 @@ function clearWalletUi() {
 
 async function refreshHolderNfts() {
   if (!state.walletAddress) return;
-  setScanStatus('Polygon上のNemoCollection2023を確認しています…', 'loading');
+  setScanStatus('NemoCollection2023を確認しています…', 'loading');
   $('refreshNftsBtn').disabled = true;
   $('manualVerifyStatus').textContent = '';
 
   let nfts = [];
   let source = '';
-  let openSeaError = null;
-  let chainError = null;
+  let backendError = null;
+  let directError = null;
+  let backendSucceeded = false;
 
   try {
-    // スマホではこの経路が安定しているため、従来どおりOpenSeaを最初に試す。
-    try {
-      const openSeaNfts = await fetchNemoNftsFromOpenSea(state.walletAddress);
-      nfts = dedupeNfts(openSeaNfts.map(normalizeOpenSeaNft).filter(Boolean));
-      if (nfts.length) source = 'OpenSea';
-    } catch (err) {
-      openSeaError = err;
+    // v0.9: PC/スマホ共通の本命経路。
+    // GitHub PagesからOpenSeaを直接叩かず、Cloudflare Workerを経由する。
+    if (NEMO_API_BASE) {
+      setScanStatus('Nemo Holder API経由で保有NFTを確認しています…', 'loading');
+      try {
+        const backend = await fetchNemoNftsFromBackend(state.walletAddress);
+        backendSucceeded = true;
+        nfts = dedupeNfts((backend.nfts || []).map(normalizeOpenSeaNft).filter(Boolean));
+        source = 'Nemo Holder API';
+      } catch (err) {
+        backendError = err;
+      }
     }
 
-    // PCブラウザではOpenSeaのブラウザ直アクセスが失敗することがある。
-    // その場合はMetaMask経由でPolygon上のERC-1155 balanceOfBatchを直接読み、
-    // NemoCollection2023だけをメタデータ名で絞り込む。
-    if (!nfts.length) {
-      setScanStatus('OpenSeaで取得できないため、Polygonを直接確認しています…', 'loading');
+    // Worker未設定・一時障害時のフォールバック。
+    // スマホでは従来のOpenSea直取得が動く環境があるため残す。
+    if (!backendSucceeded) {
+      setScanStatus(NEMO_API_BASE
+        ? 'API経由の取得に失敗したため、従来方式で再確認しています…'
+        : 'Nemo Holder APIが未設定のため、従来方式で確認しています…', 'loading');
       try {
-        nfts = await fetchNemoNftsOnChain(state.walletAddress, progress => {
-          setScanStatus(`Polygonを直接確認中… ${progress}%`, 'loading');
-        });
-        nfts = dedupeNfts(nfts);
-        if (nfts.length) source = 'Polygon直接確認';
+        const openSeaNfts = await fetchNemoNftsFromOpenSea(state.walletAddress);
+        nfts = dedupeNfts(openSeaNfts.map(normalizeOpenSeaNft).filter(Boolean));
+        source = 'OpenSea直接確認';
       } catch (err) {
-        chainError = err;
+        directError = err;
       }
     }
 
@@ -511,19 +517,36 @@ async function refreshHolderNfts() {
     if (state.holderNfts.length) {
       setScanStatus(`🔓 Nemo Holder ✓　${state.holderNfts.length}人のねもを確認しました。深層12ROOMが開きました。${source ? `（${source}）` : ''}`, 'success');
       $('manualVerifyStatus').textContent = '';
-    } else if (chainError) {
+    } else if (backendSucceeded) {
+      setScanStatus('このウォレットではNemoCollection2023を確認できませんでした。別ウォレットの場合は接続先を変更してください。', 'warning');
+    } else {
       setScanStatus('自動取得がうまくいきませんでした。下の「Token IDで確認」も使えます。', 'warning');
       const parts = [];
-      if (openSeaError) parts.push(`OpenSea: ${friendlyNetworkError(openSeaError)}`);
-      parts.push(`Polygon直接確認: ${friendlyNetworkError(chainError)}`);
+      if (!NEMO_API_BASE) parts.push('Nemo Holder API: 未設定');
+      if (backendError) parts.push(`Nemo Holder API: ${friendlyNetworkError(backendError)}`);
+      if (directError) parts.push(`OpenSea直接確認: ${friendlyNetworkError(directError)}`);
       $('manualVerifyStatus').textContent = parts.join(' / ');
-    } else {
-      setScanStatus('このウォレットではNemoCollection2023を確認できませんでした。別ウォレットの場合は接続先を変更してください。', 'warning');
-      if (openSeaError) $('manualVerifyStatus').textContent = `OpenSea取得は失敗しましたが、Polygon直接確認は完了しました。`;
     }
   } finally {
     $('refreshNftsBtn').disabled = false;
   }
+}
+
+async function fetchNemoNftsFromBackend(address) {
+  if (!NEMO_API_BASE) throw new Error('Nemo Holder API URLが未設定です。');
+  const url = new URL(`${NEMO_API_BASE}/nfts`);
+  url.searchParams.set('address', address);
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { 'Accept': 'application/json' },
+    cache: 'no-store',
+  });
+  let data = null;
+  try { data = await response.json(); } catch {}
+  if (!response.ok || !data?.ok) {
+    throw new Error(data?.message || data?.error || `Nemo Holder API ${response.status}`);
+  }
+  return data;
 }
 
 async function fetchNemoNftsFromOpenSea(address) {
