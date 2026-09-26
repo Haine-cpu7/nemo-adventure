@@ -5,10 +5,31 @@ const STORAGE = {
 };
 
 const NEMOS = [
-  { id: 'curious', name: '好奇心ねも', icon: '🐱', desc: '未知のものが気になる。レア発見に少し強い。', perk: 'rare', badge: 'レア発見 +' },
-  { id: 'careful', name: '慎重ねも', icon: '🧭', desc: '危ない気配に敏感。げんきが減りにくい。', perk: 'guard', badge: 'ダメージ軽減' },
-  { id: 'foodie', name: '食いしん坊ねも', icon: '🥟', desc: '食べ物を見つけると、いつもより元気になる。', perk: 'food', badge: '食べ物回復 +' },
-  { id: 'brave', name: 'がんばりねも', icon: '🎒', desc: '少しくらい怖くても奥へ進む。最大げんきが高い。', perk: 'stamina', badge: '最大げんき +' },
+  {
+    id: 'sakura', name: 'さくらねも', image: 'assets/sakura-nemo.webp',
+    desc: 'おだやかで安定感のあるバランス型。休憩や回復が少し得意。',
+    perk: 'balance', badge: '回復 +1 / げんき 11'
+  },
+  {
+    id: 'mecha', name: 'メカねも', image: 'assets/mecha-nemo.webp',
+    desc: '気になるものは分析したい探索型。珍しい拾いものに強い。',
+    perk: 'rare', badge: 'レア発見 +'
+  },
+  {
+    id: 'pink', name: 'ぴんくねも', image: 'assets/pink-nemo.webp',
+    desc: 'なんとなく運がいい幸運型。ときどき追加のおみやげを見つける。',
+    perk: 'lucky', badge: 'おまけ発見あり'
+  },
+  {
+    id: 'cheerful', name: 'ちあふるねも', image: 'assets/cheerful-nemo.webp',
+    desc: '元気いっぱいの前進型。少しくらい疲れてもまだ進める。',
+    perk: 'stamina', badge: '最大げんき 12'
+  },
+  {
+    id: 'quiet', name: 'しずかねも', image: 'assets/quiet-nemo.webp',
+    desc: '周囲をよく見て進む安全型。危ない場面でダメージを抑えやすい。',
+    perk: 'guard', badge: 'ダメージ軽減'
+  },
 ];
 
 const DUNGEONS = [
@@ -217,7 +238,7 @@ function renderSetup() {
     const btn = document.createElement('button');
     btn.className = 'select-card';
     btn.dataset.id = nemo.id;
-    btn.innerHTML = `<span class="card-icon">${nemo.icon}</span><span class="card-title">${nemo.name}</span><span class="card-desc">${nemo.desc}</span><span class="card-badge">${nemo.badge}</span>`;
+    btn.innerHTML = `<span class="nemo-card-image-wrap"><img class="nemo-card-image" src="${nemo.image}" alt="${nemo.name}" loading="lazy"></span><span class="card-body"><span class="guest-label">GUEST NEMO</span><span class="card-title">${nemo.name}</span><span class="card-desc">${nemo.desc}</span><span class="card-badge">${nemo.badge}</span></span>`;
     btn.addEventListener('click', () => {
       state.selectedNemo = nemo;
       document.querySelectorAll('#nemoGrid .select-card').forEach(el => el.classList.toggle('selected', el.dataset.id === nemo.id));
@@ -253,7 +274,7 @@ function updateSelectionSummary() {
 }
 
 function startAdventure() {
-  state.maxHp = state.selectedNemo.perk === 'stamina' ? 12 : 10;
+  state.maxHp = state.selectedNemo.perk === 'stamina' ? 12 : state.selectedNemo.perk === 'balance' ? 11 : 10;
   state.hp = state.maxHp;
   state.room = 0;
   state.loot = [];
@@ -263,6 +284,8 @@ function startAdventure() {
   state.finished = false;
   $('adventureTitle').textContent = state.selectedDungeon.name;
   $('nemoName').textContent = state.selectedNemo.name;
+  $('activeNemoImage').src = state.selectedNemo.image;
+  $('activeNemoImage').alt = state.selectedNemo.name;
   setDungeonTheme(state.selectedDungeon.id);
   addLog(`${state.selectedNemo.name}は${state.selectedDungeon.name}へ出発した。`);
   showScreen('adventureScreen');
@@ -354,16 +377,16 @@ function resolveChoice(effect) {
       maybeTrait('肉まん鑑定士', .45);
       break;
     case 'heal':
-      heal(state.selectedNemo.perk === 'food' ? 4 : 3);
+      heal(3 + (state.selectedNemo.perk === 'balance' ? 1 : 0));
       message = 'ねもは肉まんを食べて、ちょっと元気になった。';
       maybeTrait('肉まん鑑定士', .35);
       break;
     case 'smallHeal':
-      heal(2);
+      heal(2 + (state.selectedNemo.perk === 'balance' ? 1 : 0));
       message = 'ほんの少し休んだ。ねもの顔がゆるんだ。';
       break;
     case 'bigHeal':
-      heal(state.selectedNemo.perk === 'food' ? 5 : 4);
+      heal(4 + (state.selectedNemo.perk === 'balance' ? 1 : 0));
       message = '足湯した。冒険中なのに、完全にくつろいでいる。';
       maybeTrait('温泉好き', .55);
       break;
@@ -435,6 +458,7 @@ function resolveChoice(effect) {
   }
 
   addLog(message);
+  maybeLuckyBonus();
   maybeRandomTrait();
   renderAfterChoice(message);
 
@@ -485,6 +509,14 @@ function gainLoreLoot() {
   const item = { ...LOOT.filter(x => loreIds.includes(x.id))[Math.floor(Math.random() * loreIds.length)] };
   state.loot.push(item);
   return `${item.icon} ${item.name}を見つけた。なんだか普通の拾いものではなさそうだ。`;
+}
+
+function maybeLuckyBonus() {
+  if (state.selectedNemo?.perk !== 'lucky' || Math.random() >= .16) return;
+  const candidates = LOOT.filter(x => x.rarity === 1);
+  const item = { ...candidates[Math.floor(Math.random() * candidates.length)] };
+  state.loot.push(item);
+  addLog(`🍀 幸運のおまけ：${item.icon} ${item.name}も見つけた。`);
 }
 
 function takeDamage(amount) {
@@ -567,6 +599,7 @@ function finishAdventure(reason) {
     date: new Date().toLocaleString('ja-JP'),
     nemo: state.selectedNemo.name,
     nemoId: state.selectedNemo.id,
+    nemoImage: state.selectedNemo.image,
     dungeon: state.selectedDungeon.name,
     dungeonId: state.selectedDungeon.id,
     rooms: Math.min(state.room, 8),
@@ -581,6 +614,8 @@ function finishAdventure(reason) {
   const newlyUnlocked = updateTitles();
   renderSetup();
 
+  $('resultNemoImage').src = state.selectedNemo.image;
+  $('resultNemoImage').alt = state.selectedNemo.name;
   $('resultIcon').textContent = icon;
   $('resultTitle').textContent = title;
   $('resultText').textContent = text;
@@ -700,9 +735,10 @@ function renderHistory() {
     const loot = r.loot?.length ? r.loot.map(x => `${x.icon}${x.name}`).join(' / ') : 'なし';
     const traits = r.traits?.length ? r.traits.map(x => `<span class="tag">${x}</span>`).join('') : '<span class="empty">特性なし</span>';
     const result = r.reason === 'clear' ? '奥まで到達' : r.reason === 'tired' ? '疲れて帰還' : '自分で帰還';
+    const knownNemo = NEMOS.find(n => n.id === r.nemoId);
+    const image = r.nemoImage || knownNemo?.image || '';
     return `<article class="history-card">
-      <h3>${r.nemo} → ${r.dungeon}</h3>
-      <div class="history-meta">${r.date}｜ROOM ${r.rooms}｜${result}</div>
+      <div class="history-head">${image ? `<img src="${image}" alt="${r.nemo}" class="history-nemo-image">` : ''}<div><h3>${r.nemo} → ${r.dungeon}</h3><div class="history-meta">${r.date}｜ROOM ${r.rooms}｜${result}</div></div></div>
       <p>戦利品：${loot}</p>
       <div class="history-tags">${traits}</div>
     </article>`;

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#f5efe3" />
-  <title>ねもの冒険記録 v0.2</title>
+  <title>ねもの冒険記録 v0.3</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -23,6 +23,34 @@
 
     <main>
       <section id="setupScreen" class="screen active">
+        <div class="panel mode-panel">
+          <div class="section-heading">
+            <div>
+              <span class="label">PLAY MODE</span>
+              <h2>遊び方を選ぶ</h2>
+            </div>
+            <span class="guest-chip">GUEST OPEN</span>
+          </div>
+          <div class="mode-grid">
+            <button class="mode-card active" type="button" aria-pressed="true">
+              <span class="mode-icon">🐾</span>
+              <span>
+                <strong>ゲストとして遊ぶ</strong>
+                <small>NFTなしでOK。5人のゲストねもから選んで冒険できます。</small>
+              </span>
+              <span class="mode-status">いま遊べる</span>
+            </button>
+            <button class="mode-card locked" type="button" disabled>
+              <span class="mode-icon">🔗</span>
+              <span>
+                <strong>自分のNFTねもで遊ぶ</strong>
+                <small>ウォレット接続・深層探索・限定お宝は次のアップデートで解放予定。</small>
+              </span>
+              <span class="mode-status">COMING SOON</span>
+            </button>
+          </div>
+        </div>
+
         <div class="panel intro-panel">
           <div class="section-heading">
             <div>
@@ -31,7 +59,7 @@
             </div>
             <div id="playSummary" class="play-summary">冒険 0回</div>
           </div>
-          <p>今は4つの冒険スタイルから選べます。将来は、ここにあなたが持っているNemo NFTが並びます。</p>
+          <p>この5人はゲーム専用の「ゲストねも」です。NFTではありません。見た目と小さな得意分野が違います。</p>
           <div class="nemo-grid" id="nemoGrid"></div>
         </div>
 
@@ -64,9 +92,12 @@
             <div id="roomProgress" class="room-progress" aria-label="探索進行度"></div>
 
             <div class="hp-row">
-              <div>
-                <span id="nemoName">ねも</span>
-                <span id="nemoMood" class="mood">ごきげん</span>
+              <div class="active-nemo">
+                <img id="activeNemoImage" class="active-nemo-image" src="" alt="冒険中のねも" />
+                <div>
+                  <span id="nemoName">ねも</span>
+                  <span id="nemoMood" class="mood">ごきげん</span>
+                </div>
               </div>
               <div class="hp-wrap">
                 <span>げんき</span>
@@ -107,6 +138,7 @@
 
       <section id="resultScreen" class="screen">
         <div class="panel result-panel">
+          <img id="resultNemoImage" class="result-nemo-image" src="" alt="帰還したねも" />
           <div id="resultIcon" class="result-icon">🐾</div>
           <span class="label">冒険終了</span>
           <h2 id="resultTitle">ねもは無事に帰ってきました</h2>
@@ -164,7 +196,7 @@
 
     <footer>
       <p>ねもは倒れません。怖くなったら、ちゃんと帰ってきます。</p>
-      <small>v0.2 · ブラウザ保存 / NFT接続は次段階</small>
+      <small>v0.3 · ゲストねも5体 / ブラウザ保存 / NFT接続は次段階</small>
     </footer>
   </div>
 
