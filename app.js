@@ -546,8 +546,65 @@ async function refreshHolderNfts() {
 
 async function fetchNemoNftsFromBackend(address) {
   if (!NEMO_API_BASE) throw new Error('Nemo Holder API URLが未設定です。');
-  const url = new URL(`${NEMO_API_BASE}/nfts`);
-  url.searchParams.set('address', address);
+
+  // Worker v0.9.6: Cloudflare Freeのsubrequest上限を避けるため、
+  // Token ID探索を4回に分割し、メタデータも小分けで取得する。
+  try {
+    const ownedIds = [];
+    const scanParts = 4;
+
+    for (let part = 0; part < scanParts; part += 1) {
+      setScanStatus(`Polygon上の保有候補を確認しています… ${part + 1}/${scanParts}`, 'loading');
+      const data = await fetchNemoApiJson('/scan', { address, part: String(part) });
+      ownedIds.push(...(Array.isArray(data.tokenIds) ? data.tokenIds : []));
+    }
+
+    const uniqueIds = [...new Set(ownedIds.map(String))];
+    if (!uniqueIds.length) {
+      return { ok: true, nfts: [], source: 'polygon-onchain-paged' };
+    }
+
+    const nfts = [];
+    const metadataBatch = 10;
+    const totalBatches = Math.ceil(uniqueIds.length / metadataBatch);
+
+    for (let offset = 0, batchNo = 1; offset < uniqueIds.length; offset += metadataBatch, batchNo += 1) {
+      const ids = uniqueIds.slice(offset, offset + metadataBatch);
+      setScanStatus(`NemoCollection2023を照合しています… ${batchNo}/${totalBatches}`, 'loading');
+      const data = await fetchNemoApiJson('/metadata', { ids: ids.join(',') });
+      nfts.push(...(Array.isArray(data.nfts) ? data.nfts : []));
+    }
+
+    return {
+      ok: true,
+      nfts: dedupeNfts(nfts.map(normalizeOpenSeaNft).filter(Boolean)),
+      source: 'polygon-onchain-paged',
+    };
+  } catch (pagedError) {
+    // v0.9.6未導入時だけ旧 /nfts を試す。v0.9.6側の実処理エラーはそのまま表示。
+    if (!/not_found|404|paged_lookup_required/i.test(String(pagedError?.message || pagedError))) {
+      throw pagedError;
+    }
+
+    const url = new URL(`${NEMO_API_BASE}/nfts`);
+    url.searchParams.set('address', address);
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      cache: 'no-store',
+    });
+    let data = null;
+    try { data = await response.json(); } catch {}
+    if (!response.ok || !data?.ok) {
+      throw new Error(data?.message || data?.error || `Nemo Holder API ${response.status}`);
+    }
+    return data;
+  }
+}
+
+async function fetchNemoApiJson(path, params = {}) {
+  const url = new URL(`${NEMO_API_BASE}${path}`);
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
   const response = await fetch(url.toString(), {
     method: 'GET',
     headers: { 'Accept': 'application/json' },
@@ -556,7 +613,9 @@ async function fetchNemoNftsFromBackend(address) {
   let data = null;
   try { data = await response.json(); } catch {}
   if (!response.ok || !data?.ok) {
-    throw new Error(data?.message || data?.error || `Nemo Holder API ${response.status}`);
+    const error = new Error(data?.message || data?.error || `Nemo Holder API ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
   return data;
 }
