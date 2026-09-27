@@ -46,19 +46,19 @@ const DUNGEONS = [
   {
     id: 'forest', name: 'どんぐりの森', icon: '🌲', difficulty: 1,
     desc: 'やさしい森。回復が多く、初めての探索や図鑑集め向き。',
-    guestRooms: 6, holderRooms: 8, recovery: 1.25, pressure: 0.03, pressureDamage: [1, 1], safePressureFactor: 0.25,
+    guestRooms: 5, holderRooms: 8, recovery: 1.25, pressure: 0.03, pressureDamage: [1, 1], safePressureFactor: 0.25,
     commonWeight: 2, dungeonWeight: 2, style: '回復多め・初心者向け'
   },
   {
     id: 'warehouse', name: '古い倉庫', icon: '📦', difficulty: 2,
     desc: '箱、罠、忘れもの。安全策と危険な宝箱の判断が重要。',
-    guestRooms: 8, holderRooms: 10, recovery: 0.95, pressure: 0.18, pressureDamage: [1, 2], safePressureFactor: 0.55,
+    guestRooms: 7, holderRooms: 10, recovery: 0.95, pressure: 0.18, pressureDamage: [1, 2], safePressureFactor: 0.55,
     commonWeight: 1, dungeonWeight: 4, style: '選択と罠・宝箱多め'
   },
   {
     id: 'onsen', name: '忘れられた温泉洞', icon: '♨️', difficulty: 3,
     desc: 'ROOM5から危険度が上がる。回復は弱く、深部ほど蒸気と岩場で消耗する。',
-    guestRooms: 10, holderRooms: 12, recovery: 0.55, pressure: 0.42, pressureDamage: [1, 2], safePressureFactor: 0.75,
+    guestRooms: 9, holderRooms: 12, recovery: 0.55, pressure: 0.42, pressureDamage: [1, 2], safePressureFactor: 0.75,
     commonWeight: 1, dungeonWeight: 5, style: '中盤から急に危険・深部は帰還前提'
   },
   {
