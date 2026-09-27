@@ -8,7 +8,8 @@ const STORAGE = {
 const BAG_CAPACITY = 5;
 const HOLDER_RELIC_PER_RUN = 1;
 const HOLDER_RELIC_ATTEMPT_LIMIT = 3;
-const HOLDER_RELIC_PITY_AFTER = 3;
+const HOLDER_RELIC_PITY_AFTER = 2;
+const HOLDER_RELIC_PITY_MIN_ROOM = 8;
 
 const COLLECTION_SLUG = 'nemocollection2023';
 const NEMO_API_BASE = String(window.NEMO_API_CONFIG?.baseUrl || '').replace(/\/+$/, '');
@@ -1381,7 +1382,7 @@ function gainSpecificLoot(ids) {
   const candidates = LOOT.filter(x => ids.includes(x.id));
   const item = chooseLootCandidate(candidates);
   if (!item) return 'そこには何も残っていなかった。';
-  if (item.holderOnly) return attemptHolderRelic(item);
+  if (item.holderOnly) return attemptHolderRelic(item, true);
   return addLootToBag(item, `${item.icon} ${item.name}を見つけた。`);
 }
 
@@ -1412,22 +1413,22 @@ function setHolderRelicMissStreak(value) {
 }
 
 function holderRelicDropChance() {
-  if (state.room >= 12) return .50;
-  if (state.room >= 11) return .40;
-  if (state.room >= 9) return .32;
-  if (state.room >= 7) return .25;
-  if (state.room >= 4) return .18;
+  if (state.room >= 12) return .75;
+  if (state.room >= 11) return .60;
+  if (state.room >= 9) return .45;
+  if (state.room >= 7) return .35;
+  if (state.room >= 4) return .25;
   return 0;
 }
 
-function attemptHolderRelic(specificItem = null) {
+function attemptHolderRelic(specificItem = null, guaranteed = false) {
   if (state.playMode !== 'holder' || state.selectedDungeon?.id !== 'archive') {
     return gainLoreByTier('royal');
   }
   if (state.holderRelicFound) {
     return 'この冒険では、もうひとつ深層遺物を見つけている。ねもは欲張らず先へ進むことにした。';
   }
-  if (state.holderRelicAttempts >= HOLDER_RELIC_ATTEMPT_LIMIT) {
+  if (!guaranteed && state.holderRelicAttempts >= HOLDER_RELIC_ATTEMPT_LIMIT) {
     return '今日はもう、深層の記録は姿を見せなかった。別の日なら見つかるかもしれない。';
   }
 
@@ -1442,11 +1443,13 @@ function attemptHolderRelic(specificItem = null) {
     return '棚には見覚えのある記録しか残っていなかった。';
   }
 
-  state.holderRelicAttempts += 1;
-  const pityActive = getHolderRelicMissStreak() >= HOLDER_RELIC_PITY_AFTER;
-  const chance = pityActive ? 1 : holderRelicDropChance();
-  if (Math.random() >= chance) {
-    return '深層の痕跡はあった。でも、持ち帰れる形では残っていなかった。';
+  if (!guaranteed) {
+    state.holderRelicAttempts += 1;
+    const pityActive = getHolderRelicMissStreak() >= HOLDER_RELIC_PITY_AFTER;
+    const chance = pityActive ? 1 : holderRelicDropChance();
+    if (Math.random() >= chance) {
+      return '深層の痕跡はあった。でも、持ち帰れる形では残っていなかった。';
+    }
   }
 
   const item = specificItem ? { ...specificItem } : { ...candidates[Math.floor(Math.random() * candidates.length)] };
@@ -1522,10 +1525,13 @@ function finishAdventure(reason) {
     title = 'ねもは自分の判断で帰ってきました'; text = '冒険は、奥まで行くことだけが正解ではありません。'; icon = '🏡'; maybeTrait('帰る判断が早い', .25);
   }
 
-  if (state.playMode === 'holder' && state.selectedDungeon.id === 'archive' && reason === 'clear') {
+  if (state.playMode === 'holder' && state.selectedDungeon.id === 'archive') {
     const carriedRelic = state.loot.some(item => item.holderOnly);
-    if (carriedRelic) setHolderRelicMissStreak(0);
-    else setHolderRelicMissStreak(getHolderRelicMissStreak() + 1);
+    if (carriedRelic) {
+      setHolderRelicMissStreak(0);
+    } else if (state.room >= HOLDER_RELIC_PITY_MIN_ROOM) {
+      setHolderRelicMissStreak(getHolderRelicMissStreak() + 1);
+    }
   }
 
   const record = {
