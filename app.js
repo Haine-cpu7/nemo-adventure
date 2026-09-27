@@ -200,6 +200,8 @@ const state = {
   playMode: 'guest',
   walletAddress: '',
   holderNfts: [],
+  holderNemoQuery: '',
+  holderNemoExpanded: false,
   selectedNemo: null,
   selectedDungeon: null,
   hp: 10,
@@ -245,6 +247,15 @@ function bindStaticEvents() {
   $('disconnectWalletBtn').addEventListener('click', disconnectGameWallet);
   $('refreshNftsBtn').addEventListener('click', refreshHolderNfts);
   $('manualVerifyBtn').addEventListener('click', verifyManualToken);
+  $('holderNemoSearch')?.addEventListener('input', event => {
+    state.holderNemoQuery = String(event.target.value || '');
+    state.holderNemoExpanded = false;
+    renderHolderNemos();
+  });
+  $('holderNemoToggleBtn')?.addEventListener('click', () => {
+    state.holderNemoExpanded = !state.holderNemoExpanded;
+    renderHolderNemos();
+  });
   document.querySelectorAll('.archive-tab').forEach(btn => btn.addEventListener('click', () => switchArchiveTab(btn.dataset.tab)));
 }
 
@@ -346,43 +357,119 @@ function renderGuestNemos() {
   });
 }
 
+function holderNemoFromNft(nft) {
+  return {
+    id: `nft-${nft.identifier}`,
+    name: nft.name || `Nemo #${nft.identifier}`,
+    image: nft.image || 'assets/sakura-nemo.webp',
+    desc: 'あなたのウォレットで保有を確認したNemo NFT。深層12ROOMとHolder限定ルートに入れます。',
+    perk: 'holder',
+    badge: 'NFT HOLDER · 深層解放',
+    tokenId: nft.identifier,
+    contract: nft.contract || NEMO_SHARED_CONTRACT,
+  };
+}
+
+function renderHolderNemoPreview() {
+  const preview = $('holderNemoPreview');
+  if (!preview) return;
+  const nemo = state.playMode === 'holder' && state.selectedNemo?.perk === 'holder'
+    ? state.selectedNemo
+    : null;
+  preview.classList.toggle('hidden', !nemo);
+  if (!nemo) return;
+  $('holderPreviewImage').src = nemo.image || 'assets/sakura-nemo.webp';
+  $('holderPreviewImage').alt = `${nemo.name} - 選択中`;
+  $('holderPreviewName').textContent = nemo.name;
+  $('holderPreviewToken').textContent = `Token ID: ${shortToken(nemo.tokenId)}`;
+}
+
 function renderHolderNemos() {
   const grid = $('holderNemoGrid');
+  const tools = $('holderNemoTools');
+  const toggle = $('holderNemoToggleBtn');
+  const search = $('holderNemoSearch');
+  const meta = $('holderNemoResultMeta');
+  const PAGE_SIZE = 12;
+
   if (!state.walletAddress) {
+    tools?.classList.add('hidden');
+    toggle?.classList.add('hidden');
     grid.innerHTML = '<div class="holder-empty">🔗 まずウォレットを接続してください。</div>';
     $('holderIntroText').textContent = 'ウォレットを接続すると、保有しているNemoCollection2023がここに並びます。';
+    renderHolderNemoPreview();
     return;
   }
   if (!state.holderNfts.length) {
+    tools?.classList.add('hidden');
+    toggle?.classList.add('hidden');
     grid.innerHTML = '<div class="holder-empty">🐾 Nemo NFTの確認待ちです。</div>';
+    renderHolderNemoPreview();
     return;
   }
 
+  tools?.classList.remove('hidden');
   $('holderIntroText').textContent = `${state.holderNfts.length}人のねもを確認しました。冒険に連れていく子を選んでください。`;
-  grid.innerHTML = '';
-  state.holderNfts.forEach(nft => {
-    const nemo = {
-      id: `nft-${nft.identifier}`,
-      name: nft.name || `Nemo #${nft.identifier}`,
-      image: nft.image || 'assets/sakura-nemo.webp',
-      desc: 'あなたのウォレットで保有を確認したNemo NFT。深層12ROOMとHolder限定ルートに入れます。',
-      perk: 'holder',
-      badge: 'NFT HOLDER · 深層解放',
-      tokenId: nft.identifier,
-      contract: nft.contract || NEMO_SHARED_CONTRACT,
-    };
-    const btn = document.createElement('button');
-    btn.className = 'select-card holder-card';
-    btn.dataset.id = nemo.id;
-    btn.innerHTML = `<span class="nemo-card-image-wrap"><img class="nemo-card-image" src="${escapeHtml(nemo.image)}" alt="${escapeHtml(nemo.name)}" loading="lazy" onerror="this.src='assets/sakura-nemo.webp'"></span><span class="card-body"><span class="guest-label holder-label">NEMO HOLDER</span><span class="card-title">${escapeHtml(nemo.name)}</span><span class="card-desc">Token ID: ${escapeHtml(shortToken(nemo.tokenId))}</span><span class="card-badge">${nemo.badge}</span></span>`;
-    btn.addEventListener('click', () => selectNemo(nemo, btn, '#holderNemoGrid .select-card'));
-    grid.appendChild(btn);
+  if (search && search.value !== state.holderNemoQuery) search.value = state.holderNemoQuery;
+
+  const query = state.holderNemoQuery.trim().toLowerCase();
+  const queryDigits = query.replace(/[^0-9]/g, '');
+  const allNemos = state.holderNfts.map(holderNemoFromNft);
+  const filtered = allNemos.filter(nemo => {
+    if (!query) return true;
+    const name = String(nemo.name || '').toLowerCase();
+    const token = String(nemo.tokenId || '').toLowerCase();
+    return name.includes(query) || token.includes(query) || (queryDigits && (name.includes(queryDigits) || token.includes(queryDigits)));
   });
+  const visible = query || state.holderNemoExpanded ? filtered : filtered.slice(0, PAGE_SIZE);
+
+  if (meta) {
+    meta.textContent = query
+      ? `${filtered.length}人見つかりました`
+      : state.holderNfts.length > PAGE_SIZE
+        ? `${Math.min(visible.length, filtered.length)} / ${filtered.length}人を表示`
+        : `${filtered.length}人`;
+  }
+
+  grid.innerHTML = '';
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="holder-empty">🔎 条件に合うねもが見つかりませんでした。</div>';
+  } else {
+    visible.forEach(nemo => {
+      const btn = document.createElement('button');
+      const selected = state.selectedNemo?.id === nemo.id;
+      btn.className = `select-card holder-card holder-compact-card${selected ? ' selected' : ''}`;
+      btn.dataset.id = nemo.id;
+      btn.type = 'button';
+      btn.title = `${nemo.name} / Token ID ${nemo.tokenId}`;
+      btn.setAttribute('aria-label', `${nemo.name}を冒険に連れていく`);
+      btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      btn.innerHTML = `<span class="nemo-card-image-wrap"><img class="nemo-card-image" src="${escapeHtml(nemo.image)}" alt="${escapeHtml(nemo.name)}" loading="lazy" onerror="this.src='assets/sakura-nemo.webp'"></span><span class="holder-compact-name">${escapeHtml(nemo.name)}</span><span class="holder-selected-mark" aria-hidden="true">✓</span>`;
+      btn.addEventListener('click', () => selectNemo(nemo, btn, '#holderNemoGrid .select-card'));
+      grid.appendChild(btn);
+    });
+  }
+
+  if (toggle) {
+    const showToggle = !query && filtered.length > PAGE_SIZE;
+    toggle.classList.toggle('hidden', !showToggle);
+    if (showToggle) {
+      toggle.textContent = state.holderNemoExpanded
+        ? `最初の${PAGE_SIZE}人に戻す`
+        : `すべて表示（${filtered.length}人）`;
+    }
+  }
+  renderHolderNemoPreview();
 }
 
 function selectNemo(nemo, btn, selector) {
   state.selectedNemo = nemo;
-  document.querySelectorAll(selector).forEach(el => el.classList.toggle('selected', el === btn));
+  document.querySelectorAll(selector).forEach(el => {
+    const selected = el === btn;
+    el.classList.toggle('selected', selected);
+    if (selector.includes('holderNemoGrid')) el.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  renderHolderNemoPreview();
   updateSelectionSummary();
 }
 
@@ -498,6 +585,8 @@ async function disconnectGameWallet() {
 function clearWalletUi() {
   state.walletAddress = '';
   state.holderNfts = [];
+  state.holderNemoQuery = '';
+  state.holderNemoExpanded = false;
   state.selectedNemo = null;
   state.selectedDungeon = null;
   $('walletStatusChip').textContent = '未接続';

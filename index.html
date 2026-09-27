@@ -137,7 +137,27 @@
             <span class="holder-chip">深層 12 ROOM</span>
           </div>
           <p id="holderIntroText">ウォレットを接続すると、保有しているNemoCollection2023がここに並びます。</p>
+
+          <div id="holderNemoTools" class="holder-nemo-tools hidden">
+            <label class="holder-search" for="holderNemoSearch">
+              <span aria-hidden="true">🔎</span>
+              <input id="holderNemoSearch" type="search" inputmode="search" autocomplete="off" placeholder="#番号・名前・Token IDで検索" />
+            </label>
+            <span id="holderNemoResultMeta" class="holder-result-meta"></span>
+          </div>
+
+          <div id="holderNemoPreview" class="holder-nemo-preview hidden" aria-live="polite">
+            <img id="holderPreviewImage" src="" alt="選択中のねも" />
+            <div class="holder-preview-copy">
+              <span class="holder-preview-label">選択中のねも</span>
+              <strong id="holderPreviewName">Nemo</strong>
+              <small id="holderPreviewToken"></small>
+              <span class="holder-preview-next">↓ 次にダンジョンを選んでください</span>
+            </div>
+          </div>
+
           <div class="nemo-grid holder-nemo-grid" id="holderNemoGrid"></div>
+          <button id="holderNemoToggleBtn" class="ghost holder-nemo-toggle hidden" type="button"></button>
         </div>
 
         <div class="panel">
@@ -273,7 +293,7 @@
 
     <footer>
       <p>ねもは倒れません。怖くなったら、ちゃんと帰ってきます。</p>
-      <small>v0.12 · 5枠バッグ / HOLDER RELIC 1周最大1個 / 深度別ドロップ / 深層遺物12種</small>
+      <small>v0.12.2 · HOLDERねも選択UI改善 / 5枠バッグ / HOLDER RELIC 1周最大1個 / 深層遺物12種</small>
     </footer>
   </div>
 

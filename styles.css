@@ -575,3 +575,166 @@ footer small { font-size: 11px; }
   color: #5e665d;
   vertical-align: middle;
 }
+
+/* v0.12.2 — HOLDERねも選択UIをコンパクト化 */
+.holder-nemo-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.holder-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fffdf8;
+}
+.holder-search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+.holder-search input::placeholder { color: #a59c8f; }
+.holder-result-meta {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.holder-nemo-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #c7d1e6;
+  border-radius: 16px;
+  background: #f2f5fb;
+}
+.holder-nemo-preview img {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  object-fit: cover;
+  object-position: 50% 18%;
+  border-radius: 14px;
+  border: 1px solid #d0d8e7;
+  background: #fff;
+}
+.holder-preview-copy { min-width: 0; }
+.holder-preview-label {
+  display: block;
+  margin-bottom: 3px;
+  color: #5e6f90;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.holder-preview-copy strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+}
+.holder-preview-copy small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.holder-preview-next {
+  display: block;
+  margin-top: 6px;
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* 一覧は「鑑賞カード」ではなく「選択パレット」にする */
+.holder-nemo-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.holder-nemo-grid .holder-compact-card {
+  min-width: 0;
+  padding: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fffdf8;
+}
+.holder-nemo-grid .holder-compact-card::after { display: none; }
+.holder-nemo-grid .holder-compact-card .nemo-card-image-wrap {
+  aspect-ratio: 1 / 1;
+  border-bottom: 0;
+}
+.holder-compact-name {
+  display: block;
+  width: 100%;
+  padding: 8px 7px 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+.holder-selected-mark {
+  display: none;
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: #5572a1;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 3px 8px rgba(50,65,90,.2);
+}
+.holder-compact-card.selected .holder-selected-mark { display: grid; }
+.holder-compact-card.selected {
+  border: 2px solid #627aa1;
+  background: #edf1f8;
+}
+.holder-nemo-toggle {
+  display: block;
+  width: max-content;
+  margin: 14px auto 0;
+  min-height: 40px;
+  padding: 9px 16px;
+  font-size: 12px;
+}
+
+@media (max-width: 980px) {
+  .holder-nemo-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .holder-nemo-tools { align-items: stretch; flex-direction: column; gap: 6px; }
+  .holder-result-meta { align-self: flex-end; padding-right: 2px; }
+  .holder-nemo-preview { gap: 10px; padding: 10px 12px; }
+  .holder-nemo-preview img { width: 58px; height: 58px; flex-basis: 58px; border-radius: 12px; }
+  .holder-preview-copy strong { font-size: 15px; }
+  .holder-nemo-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .holder-nemo-grid .holder-compact-card .nemo-card-image-wrap { aspect-ratio: 1 / 1; }
+  .holder-compact-name { padding: 7px 5px 8px; font-size: 10px; }
+}
+@media (max-width: 340px) {
+  .holder-nemo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

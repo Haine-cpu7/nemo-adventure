@@ -1,19 +1,24 @@
-Nemo Holder API Worker v0.9.5
+Nemo Holder API Worker v0.9.6
 
-変更点
-- OpenSea APIは使いません。
-- Polygon上のOpenSea Shared Storefront (ERC-1155) を直接確認します。
-- v0.9.4ではToken IDのmaxSupply部分を「1」に固定していたため、1/1以外のNemoを取りこぼしていました。
-- v0.9.5では複数のedition/maxSupply値を走査し、保有中の候補だけメタデータを取得します。
-- メタデータがNemoCollection2023のものだけをゲームへ返します。
-- balanceOfBatchを256件単位、4並列で処理します。
+目的
+- OpenSea APIを使わずPolygonを直接確認
+- Cloudflare Workers Free の「外部subrequest 50件/1 invocation」制限を回避
+- Shared Storefrontのedition数違いも確認してNemoCollection2023を取得
 
-更新方法
-1. Cloudflare Dashboard > Workers & Pages > nemo-holder-api > Edit code
-2. worker.js の中を Ctrl+A → Delete
-3. このZIPの src/index.js を全文コピーして Ctrl+V
+v0.9.5の問題
+- 20種類のedition候補 x 1024 mint index を1回のWorkerで走査
+- 256件ごとのbalanceOfBatchで最低80回のRPC subrequestが発生
+- Freeプラン上限50件を超え「Too many subrequests」になった
+
+v0.9.6
+- /scan を4分割（1回あたり通常10 RPC程度）
+- /metadata は最大12 Token IDずつ処理
+- ゲームv0.12.1が4回のscan結果を合流し、metadataを小分け取得
+
+導入
+1. Cloudflare Workers & Pages > nemo-holder-api > Edit code
+2. worker.jsの内容を全部削除
+3. src/index.jsを全文コピーして貼り付け
 4. Deploy
-5. Visit を開き、version が 0.9.5 になっていることを確認
-6. ゲームに戻り「Nemo NFTを再確認」を1回押す
-
-GitHub Pages側のファイル更新は不要です。
+5. Visitで "version":"0.9.6" を確認
+6. ゲーム側もv0.12.1へ更新

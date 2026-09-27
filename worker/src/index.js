@@ -1,27 +1,28 @@
 const DEFAULT_ALLOWED_ORIGIN = 'https://haine-cpu7.github.io';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const TOKEN_ID_RE = /^\d+$/;
 
-// NemoCollection2023 は OpenSea Shared Storefront (ERC-1155 / Polygon) 上にあります。
+// NemoCollection2023: OpenSea Shared Storefront (ERC-1155 / Polygon)
 const NEMO_SHARED_CONTRACT = '0x2953399124f0cbb46d2cbacd8a89cf0599974963';
 const NEMO_CREATOR_ADDRESS = '0xd9f57493574c8abc1651a9c0478bdf73324289f4';
-
-// Shared Storefront の creator mint index を広めに走査します。
-// 1024候補を128件ずつ balanceOfBatch するので、RPC呼び出しは通常8回です。
 const MINT_SCAN_MAX = 1024;
 
-// OpenSea Shared Storefront の Token ID 下位40bitには、mint時に設定した
-// max supply（edition数）が入ります。v0.9.4 は 1 固定だったため、
-// 1/1 以外の Nemo を取りこぼしていました。
-// Nemo制作履歴で使われている edition 値を広めにカバーします。
-const SUPPLY_CANDIDATES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20, 25, 30, 50, 100, 200, 300];
+// Cloudflare Workers Free は 1 invocation あたり外部 subrequest 50件まで。
+// そのため edition 候補を4分割し、ブラウザから /scan を4回呼んで合流します。
+const SUPPLY_GROUPS = [
+  [1, 2, 3, 4, 5],
+  [6, 7, 8, 9, 10],
+  [11, 12, 15, 20, 25],
+  [30, 50, 100, 200, 300],
+];
 
-// balanceOfBatch は一度に大きくし過ぎると公開RPCに拒否されることがあるため
-// 256件単位。4リクエストずつ並列化して待ち時間を抑えます。
-const SCAN_CHUNK = 256;
+// 1 part = 5 supplies x 1024 mint index = 5120候補。
+// 512件ずつ balanceOfBatch => 通常10 subrequests / invocation。
+const SCAN_CHUNK = 512;
 const SCAN_CONCURRENCY = 4;
+const METADATA_BATCH_MAX = 12;
+const META_FETCH_CONCURRENCY = 4;
 
-// 2026年現在、Polygon公式の公開RPCは常設前提にしづらいため、
-// キー不要の第三者パブリックRPCを複数用意してフェイルオーバーします。
 const DEFAULT_RPC_ENDPOINTS = [
   'https://polygon-bor-rpc.publicnode.com',
   'https://polygon.drpc.org/',
@@ -44,42 +45,93 @@ export default {
       return json({
         ok: true,
         service: 'nemo-holder-api',
-        version: '0.9.5',
-        mode: 'polygon-onchain',
+        version: '0.9.6',
+        mode: 'polygon-onchain-paged',
         opensea: false,
         contract: NEMO_SHARED_CONTRACT,
         scanMax: MINT_SCAN_MAX,
-        supplyCandidates: SUPPLY_CANDIDATES,
+        scanParts: SUPPLY_GROUPS.length,
+        metadataBatchMax: METADATA_BATCH_MAX,
       }, 200, cors);
     }
 
-    if (url.pathname !== '/nfts') {
-      return json({ ok: false, error: 'not_found' }, 404, cors);
+    if (url.pathname === '/scan') {
+      const address = String(url.searchParams.get('address') || '').trim();
+      const part = Number.parseInt(String(url.searchParams.get('part') || ''), 10);
+
+      if (!ADDRESS_RE.test(address)) {
+        return json({ ok: false, error: 'invalid_address' }, 400, cors);
+      }
+      if (!Number.isInteger(part) || part < 0 || part >= SUPPLY_GROUPS.length) {
+        return json({ ok: false, error: 'invalid_scan_part' }, 400, cors);
+      }
+
+      try {
+        const tokenIds = await scanOwnedTokenIds(address, SUPPLY_GROUPS[part], env);
+        return json({
+          ok: true,
+          address,
+          chain: 'polygon',
+          source: 'polygon-onchain-paged',
+          part,
+          parts: SUPPLY_GROUPS.length,
+          supplies: SUPPLY_GROUPS[part],
+          tokenIds: tokenIds.map(id => id.toString()),
+        }, 200, cors);
+      } catch (error) {
+        console.error('Nemo scan failed', error);
+        return json({
+          ok: false,
+          error: 'polygon_scan_failed',
+          message: safeError(error),
+        }, 502, cors);
+      }
     }
 
-    const address = String(url.searchParams.get('address') || '').trim();
-    if (!ADDRESS_RE.test(address)) {
-      return json({ ok: false, error: 'invalid_address' }, 400, cors);
+    if (url.pathname === '/metadata') {
+      const rawIds = String(url.searchParams.get('ids') || '').trim();
+      const ids = [...new Set(rawIds.split(',').map(v => v.trim()).filter(Boolean))];
+
+      if (!ids.length || ids.length > METADATA_BATCH_MAX || ids.some(id => !TOKEN_ID_RE.test(id))) {
+        return json({
+          ok: false,
+          error: 'invalid_token_ids',
+          max: METADATA_BATCH_MAX,
+        }, 400, cors);
+      }
+
+      try {
+        const tokenIds = ids.map(id => BigInt(id));
+        const nfts = await getNemoMetadataBatch(tokenIds, env);
+        return json({
+          ok: true,
+          chain: 'polygon',
+          collection: 'nemocollection2023',
+          source: 'polygon-onchain-paged',
+          nfts,
+        }, 200, cors);
+      } catch (error) {
+        console.error('Nemo metadata lookup failed', error);
+        return json({
+          ok: false,
+          error: 'metadata_lookup_failed',
+          message: safeError(error),
+        }, 502, cors);
+      }
     }
 
-    try {
-      const nfts = await getNemoNftsOnChain(address, env);
-      return json({
-        ok: true,
-        address,
-        chain: 'polygon',
-        collection: 'nemocollection2023',
-        source: 'polygon-onchain',
-        nfts,
-      }, 200, cors);
-    } catch (error) {
-      console.error('Nemo on-chain lookup failed', error);
+    // v0.9.6 からは1リクエストで全探索せず、Cloudflare Freeの50件制限を
+    // 確実に避けるため /scan + /metadata の分割方式を使います。
+    if (url.pathname === '/nfts') {
       return json({
         ok: false,
-        error: 'polygon_lookup_failed',
-        message: safeError(error),
-      }, 502, cors);
+        error: 'paged_lookup_required',
+        message: 'ゲームをv0.12.1以降へ更新してください。',
+        version: '0.9.6',
+      }, 409, cors);
     }
+
+    return json({ ok: false, error: 'not_found' }, 404, cors);
   },
 };
 
@@ -157,26 +209,69 @@ async function rpcCall(env, method, params) {
   throw lastError || new Error('Polygon RPCへ接続できませんでした。');
 }
 
-async function getNemoNftsOnChain(address, env) {
-  // 同じ mintIndex でも maxSupply が違えば Token ID は別物です。
-  // supply=1 だけでなく、Nemoで使われ得るedition値をまとめて確認します。
+async function rpcBatchEthCall(env, calls) {
+  if (!calls.length) return [];
+  let lastError = null;
+
+  for (const endpoint of rpcEndpoints(env)) {
+    try {
+      const requests = calls.map((call, index) => ({
+        jsonrpc: '2.0',
+        id: index + 1,
+        method: 'eth_call',
+        params: [call, 'latest'],
+      }));
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(requests),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`RPC batch ${response.status}: ${text.slice(0, 160)}`);
+      }
+
+      const payload = await response.json();
+      if (!Array.isArray(payload)) throw new Error('RPC batch result is not an array');
+
+      const byId = new Map(payload.map(item => [Number(item.id), item]));
+      return requests.map(req => {
+        const item = byId.get(Number(req.id));
+        if (!item) throw new Error(`RPC batch result missing: ${req.id}`);
+        if (item.error) throw new Error(`RPC error ${item.error.code}: ${item.error.message}`);
+        if (item.result == null) throw new Error('RPC result is empty');
+        return item.result;
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Polygon RPC batchへ接続できませんでした。');
+}
+
+async function scanOwnedTokenIds(address, supplies, env) {
   const candidates = [];
   for (let mintIndex = 0; mintIndex < MINT_SCAN_MAX; mintIndex += 1) {
-    for (const supply of SUPPLY_CANDIDATES) {
+    for (const supply of supplies) {
       candidates.push(sharedStorefrontTokenId(NEMO_CREATOR_ADDRESS, mintIndex, supply));
     }
   }
 
-  const ownedTokenIds = [];
   const chunks = [];
   for (let offset = 0; offset < candidates.length; offset += SCAN_CHUNK) {
     chunks.push(candidates.slice(offset, offset + SCAN_CHUNK));
   }
 
-  // 公開RPCを一気に叩き過ぎないよう、少数ずつ並列処理します。
+  const owned = [];
   for (let offset = 0; offset < chunks.length; offset += SCAN_CONCURRENCY) {
     const group = chunks.slice(offset, offset + SCAN_CONCURRENCY);
-    const groupResults = await Promise.all(group.map(async chunk => {
+    const results = await Promise.all(group.map(async chunk => {
       const balances = await erc1155BalanceOfBatch(address, chunk, env);
       const found = [];
       balances.forEach((balance, index) => {
@@ -184,47 +279,10 @@ async function getNemoNftsOnChain(address, env) {
       });
       return found;
     }));
-    for (const found of groupResults) ownedTokenIds.push(...found);
+    results.forEach(found => owned.push(...found));
   }
 
-  if (!ownedTokenIds.length) return [];
-
-  // 念のため重複排除。
-  const uniqueOwnedTokenIds = [...new Map(
-    ownedTokenIds.map(tokenId => [tokenId.toString(), tokenId])
-  ).values()];
-
-  // メタデータ取得を一気に投げすぎないよう、小さい並列単位にする。
-  const results = [];
-  const META_CONCURRENCY = 4;
-
-  for (let offset = 0; offset < uniqueOwnedTokenIds.length; offset += META_CONCURRENCY) {
-    const group = uniqueOwnedTokenIds.slice(offset, offset + META_CONCURRENCY);
-    const found = await Promise.all(group.map(async tokenId => {
-      try {
-        const metadata = await getTokenMetadata(tokenId, env);
-        if (!isNemoCollection2023Metadata(metadata)) return null;
-
-        return {
-          identifier: tokenId.toString(),
-          name: metadata?.name || `Nemo ${tokenId.toString()}`,
-          image: resolveAssetUrl(metadata?.image || metadata?.image_url || metadata?.animation_url || ''),
-          image_url: resolveAssetUrl(metadata?.image || metadata?.image_url || metadata?.animation_url || ''),
-          display_image_url: resolveAssetUrl(metadata?.image || metadata?.image_url || metadata?.animation_url || ''),
-          contract: NEMO_SHARED_CONTRACT,
-        };
-      } catch (error) {
-        console.warn(`metadata skipped: ${tokenId.toString()}`, safeError(error));
-        return null;
-      }
-    }));
-
-    results.push(...found.filter(Boolean));
-  }
-
-  // Nemo2023 #番号がある場合は番号順に並べる。
-  results.sort((a, b) => extractNemoNumber(a.name) - extractNemoNumber(b.name));
-  return results;
+  return [...new Map(owned.map(id => [id.toString(), id])).values()];
 }
 
 function sharedStorefrontTokenId(creatorAddress, mintIndex, supply = 1) {
@@ -235,7 +293,7 @@ function sharedStorefrontTokenId(creatorAddress, mintIndex, supply = 1) {
 async function erc1155BalanceOfBatch(address, tokenIds, env) {
   if (!tokenIds.length) return [];
 
-  const selector = '4e1273f4'; // balanceOfBatch(address[],uint256[])
+  const selector = '4e1273f4';
   const addressWord = address.toLowerCase().replace(/^0x/, '').padStart(64, '0');
   const word = value => BigInt(value).toString(16).padStart(64, '0');
   const count = tokenIds.length;
@@ -256,9 +314,7 @@ async function erc1155BalanceOfBatch(address, tokenIds, env) {
 
 function decodeAbiUintArray(hex) {
   const clean = String(hex || '').replace(/^0x/, '');
-  if (clean.length < 128) {
-    throw new Error('balanceOfBatchの結果を読み取れませんでした。');
-  }
+  if (clean.length < 128) throw new Error('balanceOfBatchの結果を読み取れませんでした。');
 
   const offsetBytes = Number.parseInt(clean.slice(0, 64), 16);
   const start = offsetBytes * 2;
@@ -268,9 +324,7 @@ function decodeAbiUintArray(hex) {
 
   for (let i = 0; i < length; i += 1) {
     const chunk = clean.slice(cursor, cursor + 64);
-    if (chunk.length !== 64) {
-      throw new Error('balanceOfBatchの結果が途中で切れています。');
-    }
+    if (chunk.length !== 64) throw new Error('balanceOfBatchの結果が途中で切れています。');
     values.push(BigInt(`0x${chunk}`));
     cursor += 64;
   }
@@ -278,17 +332,54 @@ function decodeAbiUintArray(hex) {
   return values;
 }
 
-async function getTokenMetadata(tokenId, env) {
+async function getNemoMetadataBatch(tokenIds, env) {
   const selector = '0e89341c'; // uri(uint256)
-  const tokenWord = tokenId.toString(16).padStart(64, '0');
-  const result = await rpcCall(env, 'eth_call', [
-    { to: NEMO_SHARED_CONTRACT, data: `0x${selector}${tokenWord}` },
-    'latest',
-  ]);
+  const calls = tokenIds.map(tokenId => ({
+    to: NEMO_SHARED_CONTRACT,
+    data: `0x${selector}${tokenId.toString(16).padStart(64, '0')}`,
+  }));
 
-  let uri = decodeAbiString(result);
-  uri = uri.replace(/\{id\}/gi, tokenWord.toLowerCase());
-  return fetchJsonUri(uri);
+  const uriResults = await rpcBatchEthCall(env, calls);
+  const entries = [];
+
+  uriResults.forEach((result, index) => {
+    try {
+      const tokenId = tokenIds[index];
+      const tokenWord = tokenId.toString(16).padStart(64, '0');
+      let uri = decodeAbiString(result);
+      uri = uri.replace(/\{id\}/gi, tokenWord.toLowerCase());
+      entries.push({ tokenId, uri });
+    } catch (error) {
+      console.warn('metadata URI skipped', safeError(error));
+    }
+  });
+
+  const output = [];
+  for (let offset = 0; offset < entries.length; offset += META_FETCH_CONCURRENCY) {
+    const group = entries.slice(offset, offset + META_FETCH_CONCURRENCY);
+    const found = await Promise.all(group.map(async ({ tokenId, uri }) => {
+      try {
+        const metadata = await fetchJsonUri(uri);
+        if (!isNemoCollection2023Metadata(metadata)) return null;
+        const image = resolveAssetUrl(metadata?.image || metadata?.image_url || metadata?.animation_url || '');
+        return {
+          identifier: tokenId.toString(),
+          name: metadata?.name || `Nemo ${tokenId.toString()}`,
+          image,
+          image_url: image,
+          display_image_url: image,
+          contract: NEMO_SHARED_CONTRACT,
+        };
+      } catch (error) {
+        console.warn(`metadata skipped: ${tokenId.toString()}`, safeError(error));
+        return null;
+      }
+    }));
+    output.push(...found.filter(Boolean));
+  }
+
+  output.sort((a, b) => extractNemoNumber(a.name) - extractNemoNumber(b.name));
+  return output;
 }
 
 function decodeAbiString(hex) {
