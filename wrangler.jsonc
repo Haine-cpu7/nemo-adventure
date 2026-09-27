@@ -1,9 +1,0 @@
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "nemo-holder-api",
-  "main": "src/index.js",
-  "compatibility_date": "2026-09-26",
-  "vars": {
-    "ALLOWED_ORIGIN": "https://haine-cpu7.github.io"
-  }
-}
