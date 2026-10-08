@@ -1,46 +1,16 @@
-ねも死なないローグライク v0.12.7
+NEMO Collection SEO Starter 2026-10-08
+対象: https://github.com/Haine-cpu7/nemo-adventure
 
-Webブラウザで遊べる、ねもちゃんの「死なないローグライク」。
-NFTなしでもゲストねもで遊べます。
-NemoCollection2023ホルダーは、自分のNFTねもで深層とHolder限定ルートへ進めます。
+アップロードするのは、このZIP内のファイルのみです。
+index.html のみ。既存の app.js / api-config.js / nemo-door.js / styles.css / sitemap.xml はそのまま。
 
-v0.12変更点：深層探索と持ち帰り設計を再構築
-- バッグ容量を5枠に制限
-- 6個目を見つけたら「何を置いていくか」をその場で選択
-- HOLDER RELICは1回の冒険で最大1個だけ持ち帰り可能
-- HOLDER RELICを6種から12種へ拡張
-- 各HOLDER RELICに出現深度を設定（ROOM4〜12）
-- 深いROOMほどHOLDER RELICの発見率が上昇
-- 1周でHOLDER RELICの抽選機会は最大3回
-- 既に図鑑登録済みのHOLDER RELICは再取得しない
-- 地下回廊を3回連続で踏破して新規HOLDER RELICを持ち帰れなかった場合、次の有効抽選は救済確定
-- HOLDER RELIC取得後は、その冒険中は追加の深層遺物を拾えない
-- バッグ交換時、HOLDER RELICは誤って捨てないよう保護
-- HOLDER RELIC 6種 / 12種の収集称号を追加
+操作: GitHubの該当リポジトリの一番上（ルート）にアップロード → Commit changes。
+ほかのリポジトリにはアップロードしないでください。
 
-難易度方針（v0.11から継続）
-- 森：ほぼ完走できる
-- 倉庫：たまに途中帰還
-- 温泉洞：途中帰還が普通に起こる
-- 地下回廊：最奥到達は珍しい成功回
+【重要】
+最新公開版のHTMLを基準に検索用文章・HTML内リンクのみを修正。
+ゲーム本体・NFT/ウォレット・セーブ処理は変更しません。
+GitHubでその後にindex.htmlが更新されていたら、古い版で上書きしないでください。
 
-Nemo Holder API：
-https://nemo-holder-api.hnhn-ovo-hnhn.workers.dev
-Worker推奨版：v0.9.5（Polygonオンチェーン直接確認）
-
-セーブデータのキーは基本的に変更していないため、既存の冒険記録・図鑑・称号は引き継がれます。
-※過去バージョンですでに取得したHOLDER RELICは取得済みのまま残ります。
-※新しい収集バランスを最初から試したい場合だけ、ゲーム内の「記録をリセット」を使用してください。
-
-
-v0.12.2変更点：HOLDERねも選択UIをコンパクト化。検索・12人初期表示・選択プレビューを追加。
-
-v0.12.3変更点：ゲストねもの最大ROOM数を、森5・倉庫7・温泉9へ調整。NFT / HOLDER側は変更なし。
-
-v0.12.4変更点：X/TwitterやOGPのリンクプレビュー画像を、新しいメインビジュアルに差し替え。
-
-v0.12.5変更点：HOLDER RELICの収集バランスを調整。地下回廊の難易度・ROOM数は維持したまま、深部の発見率を上げ、ROOM8以上で遺物なし帰還が2回続いた場合は次のHOLDER RELIC抽選を確定。画面上に特定遺物が出現したイベントでは「持ち帰る」を選ぶと確定取得。
-
-v0.12.6変更点：Xリンクカード用OGP画像を1200×630の横長専用画像へ変更。縦長メインビジュアルの中央トリミングでタイトルが切れる問題を修正。ゲーム本体・HOLDER RELIC調整はv0.12.5のまま変更なし。
-
-v0.12.7変更点：新しいファビコンを追加。favicon.ico / PNG各サイズ / Apple Touch Icon / Web Manifest を実装。URLプレビュー用OGP画像も規格を整理し、1200×630のsummary_large_image用画像を og-nemo-roguelike-v4.jpg に更新、関連メタタグを補強。
+Search Consoleの登録作業やGoogleのインデックス反映は別途必要です。
+検索上位表示やアクセス増加を保証するものではありません。
